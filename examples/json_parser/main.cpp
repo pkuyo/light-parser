@@ -40,9 +40,9 @@ int main() {
 
     //Non-terminal Symbol
 
-    pkuyo::parsers::base_parser<Token, std::unique_ptr<AstNode>> *pValue = nullptr;
+    pkuyo::parsers::parser_wrapper<Token, std::unique_ptr<AstNode>> *pValue = nullptr;
 
-    auto lazy_value = container.Lazy([&]() { return pValue; });
+    auto lazy_value = container.Lazy([&]() { return pValue->parser; });
 
     auto elements = (lazy_value >> (comma >> lazy_value).Many()).Map([](auto &&t) {
         t.second.emplace_back(std::move(t.first));
@@ -73,7 +73,7 @@ int main() {
     auto value = null.Map([](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); })
                  | object | array | string | number | true_false;
 
-    pValue = value.parser;
+    pValue = &value;
 
     auto & parser = value;
 

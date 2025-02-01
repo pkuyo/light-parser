@@ -1,11 +1,21 @@
-//
-// Created by pkuyo on 2025/1/31.
-//
+/**
+ * @file parser.h
+ * @brief This is a lightweight parsing library that uses a compositional structure to build parsers.
+ *
+ * Main features include:
+ * - parser_container: A container class for managing the lifecycle of parsers.
+ * - parser_wrapper: A wrapper class for safely using and constructing parsers.
+ *
+ * @author pkuyo
+ * @date 2025-02-01
+ * @version 0.1.0
+ * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
+ *
+ * @warning This library is still under development, and the API may change.
+ */
 
 #ifndef LIGHT_PARSER_PARSER_H
 #define LIGHT_PARSER_PARSER_H
-//
-// Created by pkuyo on 2025/1/19.
 
 #include <map>
 #include <set>
@@ -32,7 +42,7 @@ namespace pkuyo::parsers {
         return cts;
     }
 
-
+    // Standard exception class for error handling in the parser
     class parser_exception : public std::runtime_error {
 
     public:
@@ -47,13 +57,17 @@ namespace pkuyo::parsers {
 
 
     };
+
+    // Used to reset the position point when the parser fails, in order to achieve error recovery functionality.
     template<typename token_type>
     class panic_mode_recovery {
     public:
         using sync_pred_t =  std::function<bool(const token_type&)>;
 
+        // Passes in a function for resetting the position point, with the function type being bool(const token_type&).
         explicit panic_mode_recovery(sync_pred_t pred) : sync_check(pred) {}
 
+        // Checks from iterator `it` using `sync_check` for a synchronization point. Returns the sync point if found, otherwise `end`.
         template<typename Iter>
         Iter recover(Iter it, Iter end) const {
             while(it != end) {
@@ -73,27 +87,27 @@ namespace pkuyo::parsers {
     class parser_container;
 
 
-    // 提取原始类型的辅助模板
+    // A helper template for extracting the raw type from smart pointer.
     template <typename T>
     struct remove_smart_pointer {
-        using type = T; // 默认情况，直接是T
+        using type = T;
     };
 
     template <typename T>
     struct remove_smart_pointer<std::unique_ptr<T>> {
-        using type = T; // 如果是 unique_ptr，则提取其所管理的类型
+        using type = T;
     };
 
     template<typename T>
     using remove_smart_pointer_t = remove_smart_pointer<T>::type;
 
 
-
+    // Helper template to check if a type is a pointer or an array.
     template<typename C,typename T>
     struct is_array_or_pointer : std::bool_constant<
-            std::is_same_v<std::decay_t<T>, C*> ||         // 指针类型
-            std::is_same_v<std::decay_t<T>, const C*> ||   // const指针类型
-            std::is_array_v<T> && (                           // 原生数组类型
+            std::is_same_v<std::decay_t<T>, C*> ||
+            std::is_same_v<std::decay_t<T>, const C*> ||
+            std::is_array_v<T> && (
                     std::is_same_v<std::remove_extent_t<T>, C> ||
                     std::is_same_v<std::remove_extent_t<T>, const C>
             )
@@ -101,6 +115,7 @@ namespace pkuyo::parsers {
     template<typename C,typename T>
     inline constexpr bool is_array_or_pointer_v = is_array_or_pointer<C,T>::value;
 
+    // A helper template for extracting the raw type from pointer or extent.
     template<typename T>
     struct remove_extent_or_pointer{
         typedef std::remove_pointer_t<std::remove_extent_t<T>> type;
@@ -109,6 +124,7 @@ namespace pkuyo::parsers {
     template<typename T>
     using remove_extent_or_pointer_t = remove_extent_or_pointer<T>::type;
 
+    // A helper template to determine whether a type can be used in `std::format`.
     template<typename T, typename = void>
     struct is_formattable : std::false_type {};
 
@@ -123,7 +139,6 @@ namespace pkuyo::parsers {
     template <typename T, typename R, typename... Args>
     struct is_convertible_to_function_impl<T, std::function<R(Args...)>> {
     private:
-        // 检测 T 是否可以被调用，并且返回值类型是 R，参数类型是 Args...
         template <typename U>
         static auto test(int) -> decltype(
         std::is_convertible<decltype(std::declval<U>()(std::declval<Args>()...)), R>::value,
@@ -137,10 +152,12 @@ namespace pkuyo::parsers {
         static constexpr bool value = decltype(test<T>(0))::value;
     };
 
+    // Helper template to check if type `T` is convertible to `Signature` type (`std::function<xxx>`).
     template <typename T, typename Signature>
     struct is_convertible_to_function
             : std::false_type {};
 
+    // Helper template to check if type `T` is convertible to `std::function<R(Args...)>`.
     template <typename T, typename R, typename... Args>
     struct is_convertible_to_function<T, std::function<R(Args...)>>
             : is_convertible_to_function_impl<T, std::function<R(Args...)>> {};
@@ -154,26 +171,40 @@ namespace pkuyo::parsers {
 namespace pkuyo::parsers {
 
 
-    // parser接口类，不应实际使用
+    // Abstract base class for `parser`. Used when:
+    //  1. Only the name matters;
+    //  2. Unified exception handling is needed;
+    //  3. Storing `parser` instances with different `result_type`s uniformly.
     template<typename token_type>
     class _abstract_parser {
     public:
         typedef token_type token_t;
         typedef std::vector<token_t>::const_iterator input_iterator_t;
         virtual ~_abstract_parser() = default;
+
+        // Sets an alias for `parser`.
+        // (Usually called automatically in `parser_wrapper`.)
         void set_name(const std::string_view & name) { parser_name = name; }
+
+        // Sets the exception handler. Falls back to `parser_container`'s handler if none is provided.
+        // (Usually called automatically in `parser_wrapper`.)
         void set_error_handler(std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> && func) {error_handler = func;}
+
+        // Sets for panic mode recovery. Falls back to `parser_container`'s recovery if none is provided.
+        // (Usually called automatically in `parser_wrapper`.)
         void set_recovery(panic_mode_recovery<token_type> && _recovery) { this->recovery = std::move(_recovery);}
 
         template<typename T>
         friend class parser_container;
 
+        // Gets the alias for `parser`.
         [[nodiscard]] std::string_view Name() const {return parser_name;}
 
 
     protected:
         _abstract_parser() : container(nullptr) {}
 
+        // Handles exception recovery. Invoked on `Parse` errors and may throw `parser_exception`.
         void error_handle_recovery(input_iterator_t &token_it,const input_iterator_t &token_end) {
             auto last_it = token_it;
             token_it = (this->recovery ? this->recovery.value() : this->container->default_recovery).recover(token_it,token_end);
@@ -193,7 +224,7 @@ namespace pkuyo::parsers {
     };
 
 
-    // parser基类，抽象基类
+    // Generic base class for `parser`. Takes `token_type` as input and returns `std::optional<return_type>`.
     template<typename token_type, typename return_type>
     class base_parser : public _abstract_parser<token_type> {
     public:
@@ -208,8 +239,12 @@ namespace pkuyo::parsers {
 
 
     public:
+
+        // Predicts if this `parser` can correctly parse the input (single-character lookahead).
         virtual bool Peek(const input_iterator_t &token_it,const input_iterator_t &token_end) = 0;
 
+        // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
+        // (May throw exceptions.)
         return_t Parse(const input_iterator_t &token_it,const input_iterator_t &token_end) {
             auto it = token_it;
             return parse_impl(it,token_end);
@@ -221,12 +256,19 @@ namespace pkuyo::parsers {
             return parse_impl(tmp.cbegin(),tmp.cend());
         }
 
-
+        // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
+        // (May throw exceptions.)
+        // Advances `token_it` to the end of parsing.
         return_t Parse(input_iterator_t &token_it,const input_iterator_t &token_end) {
             return parse_impl(token_it,token_end);
         }
-        virtual ~base_parser() = default;
+
+        // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
+        // (May throw exceptions.)
+        // Advances `token_it` to the end of parsing.
         virtual return_t parse_impl(input_iterator_t &token_it,const input_iterator_t &token_end) = 0;
+
+        virtual ~base_parser() = default;
 
     protected:
         base_parser() = default;
@@ -239,13 +281,13 @@ namespace pkuyo::parsers {
 
 namespace pkuyo::parsers {
 
+    // A parser that accepts any token without consuming it, returning std::optional<nullptr_t>
     template<typename TokenType>
     class parser_empty : public base_parser<TokenType, nullptr_t> {
 
     public:
         using parser_base_t = base_parser<TokenType, nullptr_t>;
 
-        // parse_impl 函数实现
         typename parser_base_t::return_t parse_impl(typename parser_base_t::input_iterator_t&,
                                                const typename parser_base_t::input_iterator_t&) override {
             return nullptr;
@@ -257,7 +299,11 @@ namespace pkuyo::parsers {
             return true;
         }
     };
-    // 基本的parser，仅比对第一个token，匹配成功返回nullptr_t，匹配失败尝试错误恢复策略, 返回std::nullopt
+
+    // A parser that only matches the first token.
+    //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
+    //  If the match is successful, it returns 'std::optional<nullptr_t>';
+    //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename cmp_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     class parser_check : public base_parser<token_type,nullptr_t>{
@@ -287,7 +333,10 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（智能指针形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+    // A parser that only matches the first token.
+    //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
+    //  If the match is successful, it returns a 'std::unique_ptr<result_type>' constructed with the token as an argument;
+    //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename return_type, typename cmp_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     class parser_ptr : public base_parser<token_type, std::unique_ptr<return_type>> {
@@ -318,7 +367,10 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（值形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+    // A parser that only matches the first token.
+    //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
+    //  If the match is successful, it returns a 'result_type' constructed with the token as an argument;
+    //  If the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename return_type, typename cmp_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     class parser_value : public base_parser<token_type, return_type> {
@@ -351,7 +403,10 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（智能指针形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+    // A parser that only matches the first token.
+    //  Uses a 'std::function<bool(const token_type &)>' to determine whether the token matches.
+    //  If the match is successful, it returns a 'std::unique_ptr<result_type>' constructed with the token as an argument;
+    //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
     template<typename token_type, typename return_type>
     class parser_ptr_with_func : public base_parser<token_type, std::unique_ptr<return_type>> {
 
@@ -381,7 +436,10 @@ namespace pkuyo::parsers {
         std::function<bool(const token_type&)> cmp_func;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（值形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+    // A parser that only matches the first token.
+    //  Uses a 'std::function<bool(const token_type &)>' to determine whether the token matches.
+    //  If the match is successful, it returns a 'result_type' constructed with the token as an argument;
+    //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
     template<typename token_type, typename return_type>
     class parser_value_with_func : public base_parser<token_type, return_type> {
 
@@ -411,7 +469,7 @@ namespace pkuyo::parsers {
         std::function<bool(const token_type&)> cmp_func;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（智能指针形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+
     template<typename token_type, typename return_type, typename cmp_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     class parser_ptr_with_constructor : public base_parser<token_type, std::unique_ptr<return_type>> {
@@ -446,7 +504,7 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
-    // 基本的parser，仅比对第一个token，返回以token为参数构造的result_type（值形式），匹配失败尝试错误恢复策略, 返回std::nullopt
+
     template<typename token_type, typename return_type, typename cmp_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     class parser_value_with_constructor : public base_parser<token_type, return_type> {
@@ -479,8 +537,13 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
-    //字符串匹配
+
+    // A parser that uses 'std::basic_string_view<token_type>' to compare 'token_type'.
+    //  If the match is successful, it returns std::optional<std::basic_string_view<token_type>>;
+    //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
+    //  Typically used when the token_type is 'char' or 'wchar_t'.
     template<typename token_type>
+    requires std::equality_comparable<token_type>
     class parser_str : public base_parser<token_type, std::basic_string_view<token_type>> {
 
     public:
@@ -515,7 +578,10 @@ namespace pkuyo::parsers {
         std::basic_string_view<token_type> cmp_value;
     };
 
-    // 与运算，顺序满足传入的全部parser，返回每个parser的返回值为参数构造的unique_ptr<result_type>
+    // A parser that sequentially satisfies both base_parser<..., input_type_left> and base_parser<..., input_type_right>.
+    //  If the return_type of one of the sub-parsers is nullptr_t, it directly returns the result of the other sub-parser;
+    //  otherwise, it returns std::pair<input_type_left, input_type_right>.
+    //  If the match fails, it attempts an error recovery strategy and returns std::nullopt.
     template<typename token_type, typename return_type, typename input_type_left,typename input_type_right>
     class parser_then : public base_parser<token_type, return_type> {
 
@@ -531,11 +597,12 @@ namespace pkuyo::parsers {
                 ,const parser_base_t::input_iterator_t &token_end) override {
             auto last_it = token_it;
             auto left_re = children_parsers.first->parse_impl(token_it,token_end);
-            //匹配失败尝试恢复，并复原token索引，返回nullopt
+
+            // If the match fails, attempts to recover and restores the token index, then returns nullopt.
             if(left_re == std::nullopt) {
                 parser_base_t::error_handle_recovery(token_it,token_end);
 
-                //复原token索引
+                //Restores token_it.
                 token_it = last_it;
                 return std::nullopt;
             }
@@ -544,7 +611,7 @@ namespace pkuyo::parsers {
             if(right_re == std::nullopt) {
                 parser_base_t::error_handle_recovery(token_it,token_end);
 
-                //复原token索引
+                //Restores token_it.
                 token_it = last_it;
                 return std::nullopt;
             }
@@ -570,8 +637,9 @@ namespace pkuyo::parsers {
     };
 
 
-    // 或运算，查询第一个满足的子parser并返回，注意仅预测一个token，多于单token的回溯会导致parser_exception
-    // 每个子parser的返回类型应为result_type的子类
+    // A parser that queries and returns the result of the first sub-parser that satisfies the condition.
+    // Note that it only predicts one token; backtracking for more than one token will result in a parser_exception.
+    // The result_type is either the base class of each sub-parser or std::variant<types...>.
     template<typename token_type, typename return_type, typename ...input_types>
     class parser_or : public base_parser<token_type, return_type> {
 
@@ -598,7 +666,7 @@ namespace pkuyo::parsers {
                                            const parser_base_t::input_iterator_t &token_end,
                                            std::index_sequence<Indices...>) {
 
-            // 遍历元组并尝试找到第一个 Peek 返回 true 的解析器
+            // Iterate through the tuple and try to find the first parser where Peek returns true
             return parse_first_valid(token_it, token_end, std::get<Indices>(children_parsers)...);
         }
 
@@ -612,13 +680,13 @@ namespace pkuyo::parsers {
                 auto re = first->parse_impl(token_it, token_end);
                 if(re == std::nullopt) {
                     parser_base_t::error_handle_recovery(token_it,token_end);
-                    //复原token索引
+                    //Restores token_it.
                     token_it = last_it;
                     return std::nullopt;
                 }
                 return re;
             } else if constexpr (sizeof...(Remainingparse_implrs) > 0) {
-                // 否则递归处理剩余的解析器
+                // Otherwise, recursively process the remaining parsers
                 return parse_first_valid(token_it, token_end, remaining...);
             } else {
                 parser_base_t::error_handle_recovery(token_it,token_end);
@@ -637,7 +705,6 @@ namespace pkuyo::parsers {
 
     };
 
-    // 匹配多个相同元素
     template<typename token_type, typename child_return_type>
     class parser_many : public base_parser<token_type, std::vector<child_return_type>> {
     public:
@@ -649,7 +716,7 @@ namespace pkuyo::parsers {
 
         bool Peek(const typename parser_base_t::input_iterator_t &,
                   const typename parser_base_t::input_iterator_t &) override {
-            // Many 允许零次匹配
+            // 'Many' permits zero or more matches.
             return true;
         }
 
@@ -664,7 +731,7 @@ namespace pkuyo::parsers {
                     if (result == std::nullopt) {
                         parser_base_t::error_handle_recovery(token_it,token_end);
 
-                        //遇到错误停止many匹配
+
                         break;
                     }
                     results.push_back(std::move(result.value()));
@@ -682,7 +749,8 @@ namespace pkuyo::parsers {
         base_parser<token_type, child_return_type>* child_parser;
     };
 
-    // 匹配多个相同元素
+    // Match the child parser 1 or more times, returning std::vector<child_return_type>.
+    // If matching fails, attempt error recovery strategy and return std::nullopt.
     template<typename token_type, typename child_return_type>
     class parser_more : public base_parser<token_type, std::vector<child_return_type>> {
     public:
@@ -731,7 +799,10 @@ namespace pkuyo::parsers {
     private:
         base_parser<token_type, child_return_type>* child_parser;
     };
-    // 匹配可选元素，无可选返回nullptr
+
+    // Match an optional element parser. If no match, return std::optional<xxx>(std::nullopt).
+    // If match is successful, return std::optional<xxx>(return_value), where return_value is the child type's return value.
+    // If matching fails, attempt error recovery strategy and return std::nullopt.
     template<typename token_type, typename return_type>
     class parser_optional : public base_parser<token_type, std::optional<return_type>> {
     public:
@@ -766,7 +837,9 @@ namespace pkuyo::parsers {
     };
 
 
-    // 延迟初始化解析器，解决parser之间的递归依赖，无自行token判断，无错误恢复
+    // Lazy initialization parser to resolve recursive dependencies between parsers.
+    // No error recovery.
+    // Pass a function of type 'base_parser<token_type, return_type>*()' for lazy initialization.
     template<typename token_type, typename return_type>
     class parser_lazy : public base_parser<token_type, return_type> {
 
@@ -801,7 +874,8 @@ namespace pkuyo::parsers {
         base_parser<token_type, return_type>* real_parser = nullptr;
     };
 
-    // 将解析结果转换为目标类型，无自行token判断，无错误恢复
+    // Convert the parsing result to the target type's parser.
+    // No error recovery.
     template<typename token_type, typename SourceType, typename TargetType>
     class parser_map : public base_parser<token_type, TargetType> {
     public:
@@ -823,7 +897,7 @@ namespace pkuyo::parsers {
                 typename parser_base_t::input_iterator_t &token_it,
                 const typename parser_base_t::input_iterator_t &token_end
         ) override {
-            // 解析源结果
+
             auto source_result = source->parse_impl(token_it, token_end);
             if (source_result == std::nullopt) {
                 parser_base_t::error_handle_recovery(token_it,token_end);
@@ -839,9 +913,10 @@ namespace pkuyo::parsers {
 
 namespace pkuyo::parsers {
 
-    //包装类，防止裸指针，便于运算符处理
+    // parser_wrapper class used for constructing parser combinators and actual expression parsing.
     template<typename token_type, typename return_type>
     class parser_wrapper {
+
 
     public:
         parser_wrapper(parser_container<token_type>& c, base_parser<token_type, return_type>* p)
@@ -851,28 +926,43 @@ namespace pkuyo::parsers {
 
         base_parser<token_type, return_type>* Get() {return parser;}
 
+
+        // Creates a parser_optional using 'other', and combine it with 'this' to form a parser_then.
         template<typename other_return_t>
         auto operator[](parser_wrapper<token_type, other_return_t> other) {
             return *this >> other.Optional();
         }
 
-        // 重载 | 运算符，创建 Or 解析器
+        // Creates a parser_or using *this and 'other'.
+        // If one of the child parsers' return type is nullptr_t, the return type of parser_or will be the return type of the other child parser.
+        // If the return_type of the two child parsers are the same, the return type of parser_or will be the return_type of the child parsers.
+        // If the return_type of parsers are pointers and there exists a base class relationship between the types,
+        //      the return_type will be the base class of the two return_types.
+        // Otherwise, return_type will be std::variant<...>.
         template<typename other_return_t>
 
         auto operator|(parser_wrapper<token_type, other_return_t> other) {
             if constexpr ( std::is_same_v<return_type,other_return_t>){
                 return container.template Or<return_type>(parser, other.parser);
             }
-            //非指针类型
+            //non pointer type
             else if constexpr (std::is_same_v<remove_smart_pointer_t<return_type>, return_type> ||
                                std::is_same_v<remove_smart_pointer_t<other_return_t>, other_return_t>) {
-                return container.template Or<std::variant<return_type,other_return_t>>(parser, other.parser);
+                if constexpr (   std::is_same_v<other_return_t, nullptr_t>) {
+                    return container.template Or<return_type>(parser, other.parser);
+                }
+                else if constexpr (   std::is_same_v<return_type, nullptr_t>) {
+                    return container.template Or<other_return_t>(parser, other.parser);
+
+                }
+                else {
+                    return container.template Or<std::variant<return_type, other_return_t>>(parser, other.parser);
+                }
             }
             else {
                 if constexpr (
                         std::is_base_of_v<remove_smart_pointer_t<return_type>, remove_smart_pointer_t<other_return_t>> ||
                         std::is_same_v<other_return_t, nullptr_t> )
-                    //重要处理，nullptr_t直接吃掉
                     return container.template Or<return_type>(parser, other.parser);
                 else if constexpr (
                         std::is_base_of_v<remove_smart_pointer_t<other_return_t>, remove_smart_pointer_t<return_type>> ||
@@ -884,47 +974,62 @@ namespace pkuyo::parsers {
 
         }
 
-        // 重载 >> 运算符，创建 Then 解析器
+        // Creates a parser_then using *this and 'other'.
         template<typename other_return_t>
         auto operator>>(parser_wrapper<token_type, other_return_t> other) {
             return container.template Then<return_type, other_return_t>(parser, other.parser);
         }
+
+        // Creates a parser_then using *this and 'other'.
         template<typename other_return_t>
         auto Then(parser_wrapper<token_type, other_return_t> other) {
             return container.template Then<return_type,other_return_t>(parser,other.parser);
         }
 
+        // Creates a parser_or using *this and 'other', with the return_t specified manually.
         template<typename return_t,typename ...other_return_t>
         auto Or(const parser_wrapper<token_type, other_return_t...> & other) {
             return container.template Or<return_t,return_type,other_return_t...>(parser,other);
         }
 
+        // Creates a parser_many using *this
         auto Many() {
             return container.template Many<return_type>(parser);
         }
 
+        // Creates a parser_more using *this
         auto More() {
             return container.template More<return_type>(parser);
         }
 
+        // Creates a parser_optional using *this
         auto Optional() {
             return container.template Optional<return_type>(parser);
         }
 
+        // Creates a parser_map using *this
         template<typename Mapper>
         auto Map(Mapper mapper) {
             using MappedType = decltype(mapper(std::declval<return_type>()));
             return container.template Map<return_type, MappedType>(parser, mapper);
         }
 
-
+        // Sets an alias for parser.
         parser_wrapper& Name(const std::string_view & new_name) {
             parser->set_name(new_name);
             return *this;
         }
+        // Sets an error handle for parser.
         template<typename FF>
         parser_wrapper& OnError(FF && func) {
             parser->set_error_handler(func);
+            return *this;
+        }
+
+        // Sets an panic recovery for parser.
+        template<typename FF>
+        parser_wrapper& Recovery(FF && func) {
+            parser->set_recovery(panic_mode_recovery(func));
             return *this;
         }
 
@@ -933,6 +1038,8 @@ namespace pkuyo::parsers {
     private:
         parser_container<token_type>& container;
 
+        template<typename T,typename Y>
+        friend class parser_wrapper;
 
     };
 
@@ -941,7 +1048,10 @@ namespace pkuyo::parsers {
 namespace pkuyo::parsers {
 
 
-    // parser的容器
+    // Container for storing parsers, managing the lifecycle of parsers.
+    // Any parser should be created within the functions of parser_container or parser_wrapper.
+    // When `parser_container` is destroyed, all managed `parser` instances are also destroyed.
+    // Avoid using any `parser` or `parser_wrapper` after `parser_container` is destroyed.
     template<typename token_type>
     class parser_container {
 
@@ -968,6 +1078,7 @@ namespace pkuyo::parsers {
             parsers_set.clear();
         }
 
+        // Creates a parser_str parser.
         auto Str(const std::basic_string_view<token_type> & cmp_value) {
             using result_parser_t = parser_str<token_type>;
 
@@ -978,11 +1089,11 @@ namespace pkuyo::parsers {
 
         }
 
-
+        // Creates a parser_value parser.
         template<typename return_type = token_type, typename cmp_type>
         requires std::__weakly_equality_comparable_with<token_type, cmp_type>
         auto SingleValue(const cmp_type & cmp_value) {
-            //针对字符串的处理
+
             if constexpr (is_array_or_pointer_v<char,cmp_type> ||
                           is_array_or_pointer_v<wchar_t,cmp_type>) {
                 using result_parser_t = parser_value<token_type,return_type,std::basic_string_view<remove_extent_or_pointer_t<cmp_type>>>;
@@ -1003,11 +1114,11 @@ namespace pkuyo::parsers {
         }
 
 
-
+        // Creates a parser_ptr parser.
         template<typename return_type, typename cmp_type>
         requires std::__weakly_equality_comparable_with<token_type, cmp_type>
         auto SinglePtr(const cmp_type & cmp_value) {
-            //针对字符串的处理
+            // Handling for strings.
             if constexpr (is_array_or_pointer_v<char,cmp_type> ||
                           is_array_or_pointer_v<wchar_t,cmp_type>) {
                 using result_parser_t = parser_ptr<token_type,return_type,std::basic_string_view<remove_extent_or_pointer_t<cmp_type>>>;
@@ -1026,7 +1137,7 @@ namespace pkuyo::parsers {
             }
 
         }
-
+        // Creates a parser_value parser with a compare function.
         template<typename return_type = token_type, typename FF>
         requires is_convertible_to_function_v<FF,std::function<bool(const token_type &)>>
         auto SingleValue(FF && compare_func) {
@@ -1040,7 +1151,7 @@ namespace pkuyo::parsers {
         }
 
 
-
+        // Creates a parser_ptr parser with a compare function.
         template<typename return_type,typename FF>
         requires is_convertible_to_function_v<FF,std::function<bool(const token_type &)>>
         auto SinglePtr(FF && compare_func) {
@@ -1054,12 +1165,12 @@ namespace pkuyo::parsers {
 
 
         }
-
+        // Creates a parser_value parser with a custom constructor.
         template<typename return_type = token_type, typename cmp_type,typename FF>
         requires std::__weakly_equality_comparable_with<token_type, cmp_type> &&
                 is_convertible_to_function_v<FF,std::function<return_type(const token_type &)>>
         auto SingleValue(const cmp_type & cmp_value,FF && constructor) {
-            //针对字符串的处理
+
             if constexpr (is_array_or_pointer_v<char,cmp_type> ||
                           is_array_or_pointer_v<wchar_t,cmp_type>) {
                 using result_parser_t = parser_value_with_constructor<token_type,return_type,std::basic_string_view<remove_extent_or_pointer_t<cmp_type>>>;
@@ -1080,13 +1191,12 @@ namespace pkuyo::parsers {
         }
 
 
-
+        // Creates a parser_ptr parser with a custom constructor.
         template<typename return_type, typename cmp_type,typename FF>
         requires std::__weakly_equality_comparable_with<token_type, cmp_type> &&
                 is_convertible_to_function_v<FF,std::function<std::unique_ptr<return_type>(const token_type &)>>
         auto SinglePtr(const cmp_type & cmp_value,
                      FF && constructor) {
-            //针对字符串的处理
             if constexpr (is_array_or_pointer_v<char,cmp_type> ||
                           is_array_or_pointer_v<wchar_t,cmp_type>) {
                 using result_parser_t = parser_ptr_with_constructor<token_type,return_type,
@@ -1123,7 +1233,6 @@ namespace pkuyo::parsers {
         requires std::__weakly_equality_comparable_with<token_type, cmp_type>
         parser_wrapper<token_type,nullptr_t> Check(const cmp_type & cmp_value) {
 
-            //针对字符串的处理
             if constexpr (is_array_or_pointer_v<char,cmp_type> ||
                           is_array_or_pointer_v<wchar_t,cmp_type>) {
                 using result_parser_t = parser_check<token_type,std::basic_string_view<remove_extent_or_pointer_t<cmp_type>>>;
@@ -1141,8 +1250,8 @@ namespace pkuyo::parsers {
             }
         }
 
+        // Creates a parser_then parser. It is recommended to use the operator overload form of parser_wrapper.
         template<typename input_type_left, typename input_type_right>
-
         auto Then(base_parser<token_type, input_type_left>*parser_left, base_parser<token_type, input_type_right>* parser_right) {
 
             if constexpr (std::is_same_v<input_type_left,nullptr_t>) {
@@ -1172,7 +1281,8 @@ namespace pkuyo::parsers {
 
 
         }
-
+        
+        // Creates a parser_or parser. It is recommended to use the operator overload form of parser_wrapper.
         template<typename return_type,typename ...input_types>
         parser_wrapper<token_type,return_type> Or(base_parser<token_type, input_types>*... parsers) {
             using result_parser_t = parser_or<token_type,return_type,input_types...>;
@@ -1184,15 +1294,10 @@ namespace pkuyo::parsers {
         }
 
         template<typename function_type>
-        //不用std::function以便于类型推导
         auto Lazy(function_type && factory) {
-            //推导std::function类型
             using factory_type = decltype(std::function{std::forward<function_type>(factory)});
-
-            //推导base_parser类型
             using base_parser = std::remove_pointer_t<decltype(factory())>::parser_base_t;
-
-            //推导出parsr的result（base_parser去除指针）
+            
             using return_type = typename base_parser::return_t::value_type;
             using result_parser_t = parser_lazy<token_type, return_type>;
 
@@ -1202,6 +1307,7 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type,return_type>(*this, ptr);
         }
 
+        // Creates a parser_optional parser. It is recommended to use the function of parser_wrapper.
         template<typename return_type>
         auto Optional(base_parser<token_type, return_type>* child) {
             using result_parser_t = parser_optional<token_type, return_type>;
@@ -1215,7 +1321,7 @@ namespace pkuyo::parsers {
         }
 
 
-
+        // Creates a parser_many parser. It is recommended to use the function of parser_wrapper.
         template<typename child_return_type>
         parser_wrapper<token_type, std::vector<child_return_type>> Many(base_parser<token_type, child_return_type>* child) {
             using result_parser_t = parser_many<token_type, child_return_type>;
@@ -1235,6 +1341,7 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type, std::vector<child_return_type>>(*this, ptr);
         }
 
+        // Creates a parser_map parser. It is recommended to use the function of parser_wrapper.
         template<typename source_type, typename target_type>
         parser_wrapper<token_type,target_type> Map(base_parser<token_type, source_type>* source,std::function<target_type(source_type)> mapper) {
             using result_parser_t = parser_map<token_type, source_type, target_type>;
@@ -1244,6 +1351,7 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type,target_type>(*this, ptr);
         }
 
+        // Creates a parser_empty parser.
         parser_wrapper<token_type,nullptr_t> Empty(){
             if(!empty) {
                 auto tmp = std::unique_ptr<parser_empty<token_type>>(create_parser<"Empty",parser_empty<token_type>>());
@@ -1253,12 +1361,15 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type,nullptr_t>(*this,empty);
         }
 
+        // Sets the default panic recovery.
         template<typename FF>
         parser_container& DefaultRecovery(FF && sync_func)
         requires is_convertible_to_function_v<FF,std::function<bool(const token_type &)>>{
             default_recovery = panic_mode_recovery<token_type>(sync_func);
             return *this;
         }
+
+        // Sets the default exception handling function.
         template<typename FF>
         parser_container&  DefaultError(FF && on_error)
         requires is_convertible_to_function_v<FF,std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>>{
@@ -1283,6 +1394,8 @@ namespace pkuyo::parsers {
         panic_mode_recovery<token_type> default_recovery;
         std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> default_error_handler;
         parser_empty<token_type>* empty;
+
+
 
     };
 
