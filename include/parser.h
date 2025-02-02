@@ -250,18 +250,21 @@ namespace pkuyo::parsers {
             return parse_impl(it,token_end);
         }
 
-        template<typename It>
-        return_t Parse(It token_it,It token_end) {
-            std::vector tmp(token_it,token_end);
-            return parse_impl(tmp.cbegin(),tmp.cend());
-        }
-
-        // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
         // (May throw exceptions.)
         // Advances `token_it` to the end of parsing.
         return_t Parse(input_iterator_t &token_it,const input_iterator_t &token_end) {
             return parse_impl(token_it,token_end);
         }
+
+        template<typename It>
+        return_t Parse(It token_it,It token_end) {
+            std::vector tmp(token_it,token_end);
+            auto it = tmp.cbegin();
+            return parse_impl(it,tmp.cend());
+        }
+
+        // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
+
 
         // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
         // (May throw exceptions.)
@@ -926,13 +929,29 @@ namespace pkuyo::parsers {
 
         base_parser<token_type, return_type>* Get() {return parser;}
 
-
-        // Creates a parser_optional using 'other', and combine it with 'this' to form a parser_then.
-        template<typename other_return_t>
-        auto operator[](parser_wrapper<token_type, other_return_t> other) {
-            return *this >> other.Optional();
+        // Overloads '[]' for semantic action injection, returning the injected function's result.
+        template <typename Action>
+        auto operator[](Action&& action) {
+            using new_return_t = decltype(action(std::declval<return_type>()));
+            return container.template Map<return_type, new_return_t>(
+                    parser,
+                    [action = std::forward<Action>(action)](return_type&& val) {
+                        return action(std::forward<return_type>(val));
+                    }
+            );
         }
 
+        // Overloads '>=' for semantic action injection, retaining the original return value.
+        template <typename Action>
+        auto operator>>=(Action&& action) {
+            return container.template Map<return_type, return_type>(
+                    parser,
+                    [action = std::forward<Action>(action)](return_type&& val) {
+                        action(val);
+                        return val; // 保留原始值供后续解析使用
+                    }
+            );
+        }
         // Creates a parser_or using *this and 'other'.
         // If one of the child parsers' return type is nullptr_t, the return type of parser_or will be the return type of the other child parser.
         // If the return_type of the two child parsers are the same, the return type of parser_or will be the return_type of the child parsers.
@@ -1033,10 +1052,10 @@ namespace pkuyo::parsers {
             return *this;
         }
 
-        base_parser<token_type, return_type>* parser;
 
     private:
         parser_container<token_type>& container;
+        base_parser<token_type, return_type>* parser;
 
         template<typename T,typename Y>
         friend class parser_wrapper;
@@ -1063,7 +1082,7 @@ namespace pkuyo::parsers {
 
             if(token) {
                 if constexpr(is_formattable<token_type>::value) {
-                    throw parser_exception(std::format("'{}'",token.value()), self.Name());
+                    throw parser_exception(std::format("{}",token.value()), self.Name());
                 }
                 else {
                     throw parser_exception("TOKEN", self.Name());
