@@ -133,6 +133,17 @@ TEST_F(ParserTest, ManyParser) {
 
 }
 
+TEST_F(ParserTest, SemanticActionParser) {
+    std::string output;
+    auto parser = builder.SingleValue("num") >>= [&output] (auto && t) { output = t.value;};
+
+    std::vector<TestToken> input = {{"num"}};
+    auto result = parser->Parse(input.cbegin(), input.cend());
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(output,"num");
+}
+
 TEST_F(ParserTest, MoreParser) {
     auto num = builder.Check("num");
     auto parser = num.More();

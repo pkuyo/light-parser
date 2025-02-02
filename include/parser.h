@@ -948,7 +948,7 @@ namespace pkuyo::parsers {
                     parser,
                     [action = std::forward<Action>(action)](return_type&& val) {
                         action(val);
-                        return val; // 保留原始值供后续解析使用
+                        return val; // return original value
                     }
             );
         }
