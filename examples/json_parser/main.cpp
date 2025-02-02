@@ -27,51 +27,51 @@ int main() {
 
     //Terminal Symbol
 
-    auto number = container.SinglePtr<NumberNode>(TokenType::NUMBER);
+    auto number = container.SinglePtr<NumberNode>(TokenType::NUMBER).Name("Name");
 
-    auto string = container.SinglePtr<StringNode>(TokenType::STRING);
+    auto string = container.SinglePtr<StringNode>(TokenType::STRING).Name("String");
 
     //bool
-    auto true_false = container.SinglePtr<BoolNode>(TokenType::FALSE) | container.SinglePtr<BoolNode>(TokenType::TRUE);
+    auto true_false = (container.SinglePtr<BoolNode>(TokenType::FALSE) | container.SinglePtr<BoolNode>(TokenType::TRUE)).Name("Bool");
 
-    auto null = container.SinglePtr<NullNode>(TokenType::NULL_);
+    auto null = container.SinglePtr<NullNode>(TokenType::NULL_).Name("Null");
 
-    auto comma = container.Check(TokenType::COMMA);
+    auto comma = container.Check(TokenType::COMMA).Name(",");
 
     //Non-terminal Symbol
 
     pkuyo::parsers::parser_wrapper<Token, std::unique_ptr<AstNode>> *pValue = nullptr;
 
-    auto lazy_value = container.Lazy([&]() { return pValue->parser; });
+    auto lazy_value = container.Lazy([&]() { return pValue->Get(); }).Name("Value");
 
     auto elements = (lazy_value >> (comma >> lazy_value).Many()).Map([](auto &&t) {
         t.second.emplace_back(std::move(t.first));
         return std::move(t.second);
-    });
+    }).Name("Elements");
 
 
-    auto array = (container.Check(TokenType::LBRACKET)[elements] >> container.Check(TokenType::RBRACKET)).Map(
+    auto array = (container.Check(TokenType::LBRACKET).Name("[") >> elements.Optional() >> container.Check(TokenType::RBRACKET).Name("]")).Map(
             [](auto &&t) {
                 if (!t) return std::make_unique<ArrayNode>(std::vector<std::unique_ptr<AstNode>>());
                 return std::make_unique<ArrayNode>(std::move(t.value()));
-            });
+            }).Name("Array");
 
-    auto pair = (string >> container.Check(TokenType::COLON) >> lazy_value).Map([](auto &&t) {
+    auto pair = (string >> container.Check(TokenType::COLON).Name(":") >> lazy_value).Map([](auto &&t) {
         return std::make_unique<PairNode>(std::move(t.first), std::move(t.second));
-    });
+    }).Name("Pair");
 
     auto members = (pair >> (comma >> pair).Many()).Map([](auto &&t) {
         t.second.emplace_back(std::move(t.first));
         return std::move(t.second);
-    });
+    }).Name("Members");
 
-    auto object = (container.Check(TokenType::LBRACE)[members] >> container.Check(TokenType::RBRACE)).Map([](auto &&t) {
+    auto object = (container.Check(TokenType::LBRACE).Name("(") >> members.Optional() >> container.Check(TokenType::RBRACE).Name(")") ).Map([](auto &&t) {
         if (!t) return std::make_unique<ObjectNode>(std::vector<std::unique_ptr<PairNode>>());
         return std::make_unique<ObjectNode>(std::move(t.value()));
-    });
+    }).Name("Object");
 
-    auto value = null.Map([](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); })
-                 | object | array | string | number | true_false;
+    auto value = (null.Map([](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); })
+                 | object | array | string | number | true_false).Name("Value");
 
     pValue = &value;
 

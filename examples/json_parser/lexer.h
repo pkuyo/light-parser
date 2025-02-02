@@ -45,6 +45,18 @@ struct Token {
     }
 };
 
+template<>
+class std::formatter<Token> {
+public:
+    constexpr auto parse(auto &context) {
+        return context.begin();
+    }
+    constexpr auto format(const Token &v, auto &context) const
+    {
+        return std::format_to(context.out(), "{}", v.value);
+    }
+};
+
 
 // simple lexer
 class JSONLexer {
