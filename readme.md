@@ -1,4 +1,4 @@
-# LightParser - A Lightweight C++ Parser Combinator Library
+# LightParser - A Lightweight C++ Parser Library
 
 ![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
