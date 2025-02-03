@@ -18,12 +18,8 @@ int main() {
     // Defines number parsers.
     auto digit = container.SingleValue<char>([](char c) { return std::isdigit(c) != 0; }).Name("digit");
     auto number = digit.More()
-            .Map([](std::vector<char> digits) {
-                int num = 0;
-                for (char d : digits) {
-                    num = num * 10 + (d - '0');
-                }
-                return num;
+            .Map([](auto && digits) {
+                return std::atoi(digits.c_str());
             })
             .Name("number");
 

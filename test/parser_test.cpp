@@ -60,6 +60,8 @@ TEST_F(ParserTest, SingleValueParser) {
     EXPECT_EQ(it->value, "+");
 }
 
+
+
 TEST_F(ParserTest, SinglePtrParser) {
     auto parser = builder.SinglePtr<std::string>("number", [](const TestToken &token) {
         return std::make_unique<std::string>(token.value);
@@ -88,6 +90,20 @@ TEST_F(ParserTest, SingleValueParserWithFunc) {
     EXPECT_EQ(it->value, "+");
 }
 
+TEST_F(ParserTest, SeqParser) {
+    std::vector<TestToken> test_swq= {{"number"},{"+"}};
+
+    std::vector<TestToken> tokens = {{"number"},
+                                     {"+"},
+                                     {"number"}};
+
+    auto parser = builder.SeqValue<std::vector<TestToken>>(test_swq);
+
+    auto it = tokens.cbegin();
+    auto result = parser->Parse(it, tokens.cend());
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(it->value, "number");
+}
 
 TEST_F(ParserTest, ThenCombination) {
     auto a = builder.Check("A");

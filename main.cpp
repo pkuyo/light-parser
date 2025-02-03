@@ -12,7 +12,7 @@ int main() {
 
     auto container = parser_container<char>();
     auto mapper= []( const string_view && t){return string(t) + ",world!";};
-    auto parser = container.Str("Hello") [mapper] >>= [](auto &&) { cout << "parsing!" << endl;};
+    auto parser = container.SeqValue<string,string_view>("Hello") [mapper] >>= [](auto &&) { cout << "parsing!" << endl;};
 
     string input("Hello");
 
