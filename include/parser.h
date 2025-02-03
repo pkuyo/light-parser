@@ -7,8 +7,8 @@
  * - parser_wrapper: A wrapper class for safely using and constructing parsers.
  *
  * @author pkuyo
- * @date 2025-02-01
- * @version 0.1.0
+ * @date 2025-02-04
+ * @version 0.1.1
  * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
  *
  * @warning This library is still under development, and the API may change.
@@ -23,6 +23,8 @@
 #include <vector>
 #include <variant>
 #include <string>
+#include <regex>
+
 namespace pkuyo::parsers {
 
     template<size_t N>
@@ -53,8 +55,6 @@ namespace pkuyo::parsers {
 
         std::string_view error_part;
         std::string_view parser_name;
-
-
 
     };
 
@@ -639,6 +639,57 @@ namespace pkuyo::parsers {
 
 
         std::basic_string_view<token_type> cmp_value;
+    };
+
+    //TODO : Comment for regex
+    template<typename token_type>
+    class parser_regex : public base_parser<token_type, std::string> {
+    public:
+        typedef base_parser<token_type, std::string> parser_base_t;
+
+        explicit parser_regex(const std::string& _pattern)
+                : pattern(_pattern),
+                  regex(_pattern, std::regex_constants::ECMAScript | std::regex_constants::optimize)
+        {
+            // Compile the regular expression, throw an exception if it fails
+            if (!regex.flags()) {
+                throw std::runtime_error("Invalid regex pattern: " + pattern);
+            }
+        }
+
+        bool Peek(const typename parser_base_t::input_iterator_t &it,
+                  const typename parser_base_t::input_iterator_t &end) override
+        {
+            // Quick check: at least one character is required and the first character must match
+            if (it == end) return false;
+            std::string candidate(1, *it); // Check if the first character might match
+            return std::regex_search(candidate, regex, std::regex_constants::match_continuous);
+        }
+
+        typename parser_base_t::return_t parse_impl(
+                typename parser_base_t::input_iterator_t &it,
+                const typename parser_base_t::input_iterator_t &end) override
+        {
+            auto start = it;
+            std::string candidate(start, end); // Create a string of the remaining input
+            std::smatch match;
+
+            // Perform the regex match (must match continuously from the beginning)
+            if (std::regex_search(candidate, match, regex,
+                                  std::regex_constants::match_continuous))
+            {
+                size_t length = match.length(); // Get the length of the match
+                std::advance(it, length);       // Move the iterator forward
+                return std::string(start, it);  // Return the matched string
+            } else {
+                this->error_handle_recovery(it, end);
+                return std::nullopt;
+            }
+        }
+
+    private:
+        std::string pattern;
+        std::regex regex;
     };
 
     // A parser that sequentially satisfies both base_parser<..., input_type_left> and base_parser<..., input_type_right>.
@@ -1314,6 +1365,20 @@ namespace pkuyo::parsers {
             parsers_set.emplace(std::move(tmp));
             return parser_wrapper<token_type,std::basic_string_view<token_type>>(*this, ptr);
 
+        }
+
+        //TODO: Comment
+        auto Regex(const std::string& pattern) {
+            using result_parser_t = parser_regex<token_type>;
+            try {
+                auto tmp = std::unique_ptr<result_parser_t>(new result_parser_t(pattern));
+                tmp->set_name("Regex(" + pattern + ")");
+                auto ptr = tmp.get();
+                parsers_set.emplace(std::move(tmp));
+                return parser_wrapper<token_type, std::string>(*this, ptr);
+            } catch (const std::regex_error& e) {
+                throw std::runtime_error("Regex error: " + std::string(e.what()) + " - Pattern: " + pattern);
+            }
         }
 
         // Creates a parser_value parser.
