@@ -303,6 +303,7 @@ namespace pkuyo::parsers {
         }
     };
 
+
     // A parser that only matches the first token.
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
     //  If the match is successful, it returns 'std::optional<nullptr_t>';
@@ -912,6 +913,42 @@ namespace pkuyo::parsers {
         base_parser<token_type, SourceType>* source;
         mapper_t mapper;
     };
+
+    template<typename token_type, typename ReturnType>
+    class parser_where : public base_parser<token_type, ReturnType> {
+    public:
+
+        typedef base_parser<token_type, ReturnType> parser_base_t;
+        friend class parser_container<token_type>;
+        using Predicate = std::function<bool(const ReturnType&)>;
+
+
+
+        bool Peek(const typename parser_base_t::input_iterator_t &token_it,
+                  const typename parser_base_t::input_iterator_t &token_end) override {
+            return inner_parser->Peek(token_it, token_end);
+        }
+
+    protected:
+        parser_where(base_parser<token_type, ReturnType>* parser, Predicate pred)
+                : inner_parser(parser), predicate(pred) {}
+        typename base_parser<token_type, ReturnType>::return_t parse_impl(
+                parser_base_t::input_iterator_t& it,
+                const parser_base_t::input_iterator_t& end
+        ) override {
+            auto result = inner_parser->parse_impl(it, end);
+            if(!result || !predicate(*result)) {
+                return std::nullopt; // 触发错误恢复
+            }
+            return result;
+        }
+
+
+
+    private:
+        base_parser<token_type, ReturnType>* inner_parser;
+        Predicate predicate;
+    };
 }
 
 namespace pkuyo::parsers {
@@ -1021,9 +1058,21 @@ namespace pkuyo::parsers {
             return container.template More<return_type>(parser);
         }
 
+        // Creates a parser_where using *this
+        template<typename Pred>
+        auto Where(Pred pred) {
+            using WrappedParser = parser_where<token_type, return_type>;
+            auto new_parser = new WrappedParser(this->parser, pred);
+            return container.template CreateWrapper<return_type>(new_parser);
+        }
+
         // Creates a parser_optional using *this
         auto Optional() {
             return container.template Optional<return_type>(parser);
+        }
+
+        auto Ignore() {
+            return this->Map([](auto &&) {return nullptr;}).Name("Ignore");
         }
 
         // Creates a parser_map using *this
@@ -1338,6 +1387,8 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type, std::optional<return_type>>(*this, ptr);
 
         }
+
+
 
 
         // Creates a parser_many parser. It is recommended to use the function of parser_wrapper.
