@@ -198,7 +198,7 @@ namespace pkuyo::parsers {
 
         // Sets the exception handler. Falls back to `parser_container`'s handler if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
-        void set_error_handler(std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> && func) {error_handler = func;}
+        void set_error_handler(std::function<void(const _abstract_parser<token_type> &,const input_iterator_t &,const input_iterator_t &)> && func) {error_handler = func;}
 
         // Sets for panic mode recovery. Falls back to `parser_container`'s recovery if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
@@ -218,8 +218,7 @@ namespace pkuyo::parsers {
         void error_handle_recovery(input_iterator_t &token_it,const input_iterator_t &token_end) {
             auto last_it = token_it;
             token_it = (this->recovery ? this->recovery.value() : this->container->default_recovery).recover(token_it,token_end);
-            (this->error_handler ? this->error_handler.value() : this->container->default_error_handler)(*this, last_it == token_end
-            ? std::nullopt : std::make_optional(*last_it));
+            (this->error_handler ? this->error_handler.value() : this->container->default_error_handler)(*this, last_it,token_end);
 
         }
 
@@ -228,7 +227,7 @@ namespace pkuyo::parsers {
 
     private:
         std::optional<panic_mode_recovery<token_type>> recovery;
-        std::optional<std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>> error_handler;
+        std::optional<std::function<void(const _abstract_parser<token_type> &,const input_iterator_t&, const input_iterator_t &)>> error_handler;
 
 
     };
@@ -1378,11 +1377,13 @@ namespace pkuyo::parsers {
         template<typename T>
         friend class _abstract_parser;
 
-        parser_container() : default_error_handler([](const _abstract_parser<token_type> & self,const std::optional<token_type> & token) {
+        typedef std::vector<token_type>::const_iterator input_iterator_t;
 
-            if(token) {
+        parser_container() : default_error_handler([](const _abstract_parser<token_type> & self,const input_iterator_t & current ,const input_iterator_t & end) {
+
+            if(current != end) {
                 if constexpr(is_formattable<token_type>::value) {
-                    throw parser_exception(std::format("{}",token.value()), self.Name());
+                    throw parser_exception(std::format("{}",*current), self.Name());
                 }
                 else {
                     throw parser_exception("TOKEN", self.Name());
@@ -1771,8 +1772,8 @@ namespace pkuyo::parsers {
         // Sets the default exception handling function.
         template<typename FF>
         parser_container&  DefaultError(FF && on_error)
-        requires is_convertible_to_function_v<FF,std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>>{
-            default_error_handler =std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> (on_error);
+        requires is_convertible_to_function_v<FF,std::function<void(const _abstract_parser<token_type> &,const input_iterator_t &,const input_iterator_t &)>>{
+            default_error_handler =std::function<void(const _abstract_parser<token_type> &,const input_iterator_t &,const input_iterator_t &)> (on_error);
             return *this;
         }
 
@@ -1787,7 +1788,6 @@ namespace pkuyo::parsers {
         }
 
 
-    private:
         template<typename SequenceType>
         auto CheckImpl(const SequenceType& seq) {
             using parser_t = parser_multi_check<token_type, SequenceType>;
@@ -1799,9 +1799,11 @@ namespace pkuyo::parsers {
         }
 
     private:
+
+
         std::set<std::unique_ptr<_abstract_parser<token_type>>> parsers_set;
         panic_mode_recovery<token_type> default_recovery;
-        std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> default_error_handler;
+        std::function<void(const _abstract_parser<token_type> &,const input_iterator_t &, const input_iterator_t &)> default_error_handler;
         parser_empty<token_type>* empty;
 
 

@@ -113,9 +113,9 @@ auto content = skip_space >> node.Many().Name("content") >> skip_space;
 
 auto element =
         (
-                (container.Regex(R"(<(?!\/))").Ignore() >> tag_name >> attributes >> container.Check('>')).Name("open_tag")
+                (container.Regex(R"(<(?!\/))").Ignore() >> tag_name >> attributes >> container.Check('>').Name(">")).Name("open_tag")
                 >> content
-                >> (container.SeqCheck("</") >> tag_name >> container.Check('>')).Name("close_tag") >> skip_space
+                >> (container.SeqCheck("</").Name("</") >> tag_name >> container.Check('>').Name(">")).Name("close_tag") >> skip_space
         )
         //verify tag name
         .Where([](const auto &t) { return std::get<3>(t) == std::get<0>(t); })
@@ -134,10 +134,8 @@ pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement = element.Get();
 
 
 int main() {
-    container.DefaultError([](auto && self,auto && token) {
-        auto re = pkuyo::parsers::parser_exception(token ? std::format("{}",token.value()) : "EOF", self.Name());
-        std::cerr << re.what() << std::endl;
-
+    container.DefaultError([](auto && self,auto && current, auto && end) {
+        throw pkuyo::parsers::parser_exception(current != end ? std::format("{}",std::string(current,end)) : "EOF", self.Name());
     });
     std::string xml = R"(
     <?xml version="1.0" encoding="utf-8"?>
@@ -148,12 +146,18 @@ int main() {
         </person>
     </root>)";
 
-    auto result = document.Get()->Parse(xml.begin(),xml.end());
-    if (result) {
-        std::cout << "XML parsed successfully!\n";
-        xml::PrintElement(result.value());
-    } else {
+    try {
+        auto result = document.Get()->Parse(xml.begin(), xml.end());
+        if (result) {
+            std::cout << "XML parsed successfully!\n";
+            xml::PrintElement(result.value());
+        } else {
+            std::cout << "Parse failed\n";
+        }
+    }
+    catch(const pkuyo::parsers::parser_exception & e) {
         std::cout << "Parse failed\n";
+        std::cerr << e.what() << std::endl;
     }
 
 
