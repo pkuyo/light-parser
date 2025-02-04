@@ -111,56 +111,47 @@ auto LogParser = container.Check('[')
     >>= [](auto) { std::cout << "Start array" << std::endl; };
 ```
 
+### Examples
+For more complex usage scenarios, refer to the examples in the [examples](examples) directory.
+
 ## API Reference
 
 
 ### parser_container
 parser_container class used for storing parsers, managing the lifecycle of parsers.
 
-| Method              | Description                                   |
-|---------------------|-----------------------------------------------|
-| `Str()`             | Create a string-matching parser               |
-| `SingleValue()`     | Create a value parser                         |
-| `SinglePtr()`       | Create a value parser (return unique_ptr<>)   |
-| `Then()`            | Create a sequential combinator parser         |
-| `Or()`              | Create a choice combinator parser             |
-| `Many()`            | Create a zero-or-more repetition parser       |
-| `More()`            | Create a one-or-more repetition parser        |
-| `Optional()`        | Create a optional parser                      |
-| `DefaultError()`    | Sets a default error handler for all parsers  |
-| `DefaultRecovery()` | Sets a default panic mode recovery function   |
+| Method              | Description                                       |
+|---------------------|---------------------------------------------------|
+| `Check()`           | Create a parser only check single token           |
+| `SeqCheck()`        | Create a parser only check multi tokens           |
+| `Str()`             | Create a string-matching parser                   |
+| `Regex()`           | Create a regex-matching parser                    |
+| `SingleValue()`     | Create a value parser                             |
+| `SinglePtr()`       | Create a value parser (return unique_ptr<>)       |
+| `SeqValue()`        | Create a multi-value parser                       |
+| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>) |
+| `DefaultError()`    | Sets a default error handler for all parsers      |
+| `DefaultRecovery()` | Sets a default panic mode recovery function       |
 
 
 ### parser_wrapper
 parser_wrapper class used for constructing parser combinators and actual expression parsing.
 
-| Operator/Method | Function                                |
-|-----------------|-----------------------------------------|
-| `>>`            | Sequential composition                  |
-| `\|`            | Choice composition                      |
-| `[]`            | Value transformation mapping            |
-| `>>=`           | Side-effect actions                     |
-| `Many()`        | Create a zero-or-more repetition parser |
-| `More()`        | Create a one-or-more repetition parser  |
-| `Optional()`    | Create a optional parser                |
-| `OnError()`     | Sets a error handler for parsers        |               |
-| `Recovery()`    | Sets a panic mode recovery function.    |
-| `Name()`        | Sets an alias for parser.               |
+| Operator/Method | Function                                                   |
+|-----------------|------------------------------------------------------------|
+| `>>`            | Sequential composition                                     |
+| `\|`            | Choice composition                                         |
+| `[]`            | Value transformation mapping                               |
+| `>>=`           | Side-effect actions                                        |
+| `Not()`         | Create a "Not" Parser (Prediction Only)                    |
+| `Many()`        | Create a zero-or-more repetition parser                    |
+| `More()`        | Create a one-or-more repetition parser                     |
+| `Ignore()`      | Create a parser ignore orignal result and return `nullptr` |
+| `Optional()`    | Create a optional parser                                   |
+| `OnError()`     | Sets a error handler for parsers                           |               |
+| `Recovery()`    | Sets a panic mode recovery function.                       |
+| `Name()`        | Sets an alias for parser.                                  |
 
-
-### Parser Types
-
-- **`parser_check`**: Matches a single token and returns `nullptr_t`.
-- **`parser_ptr`**: Matches a single token and returns a `std::unique_ptr`.
-- **`parser_value`**: Matches a single token and returns a value.
-- **`parser_str`**: Matches a string of tokens.
-- **`parser_then`**: Combines two parsers sequentially.
-- **`parser_or`**: Combines two parsers with an OR condition.
-- **`parser_many`**: Matches zero or more occurrences of a parser.
-- **`parser_more`**: Matches one or more occurrences of a parser.
-- **`parser_optional`**: Matches zero or one occurrence of a parser.
-- **`parser_lazy`**: Defines a parser lazily for recursive parsing.
-- **`parser_map`**: Maps the result of a parser to a different type.
 
 
 ## Contributing

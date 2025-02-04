@@ -239,6 +239,22 @@ TEST_F(ParserTest, MapParser) {
     EXPECT_DOUBLE_EQ(*result, 1.5);
 }
 
+
+
+TEST_F(ParserTest, NotParser) {
+    auto str_builder = pkuyo::parsers::parser_container<char>();
+    auto parser = str_builder.Str("No").Not() >> str_builder.Str("No").Optional().Ignore() >> str_builder.Str("Yes");
+    std::string tokens("Yes");
+    std::string no_tokens("NoYes");
+
+    auto result = parser->Parse(tokens.cbegin(), tokens.cend());
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "Yes");
+
+    EXPECT_THROW(parser->Parse(no_tokens.cbegin(), no_tokens.cend()), parser_exception);
+
+
+}
 TEST_F(ParserTest, StringParser) {
     auto str_builder = pkuyo::parsers::parser_container<char>();
     auto parser = (str_builder.Str("key") | str_builder.Str("word")) >> str_builder.Str("::") >>  str_builder.Regex(R"([^;]*;)");

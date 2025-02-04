@@ -15,12 +15,12 @@ enum class TokenType {
     RBRACKET,  // ]
     COLON,     // :
     COMMA,     // ,
-    STRING,    // 字符串
-    NUMBER,    // 数字
+    STRING,    // string
+    NUMBER,    // number
     TRUE,      // true
     FALSE,     // false
     NULL_,     // null
-    WHITESPACE // 空白字符
+    WHITESPACE // white space
 };
 
 // token

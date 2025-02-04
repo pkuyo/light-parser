@@ -314,6 +314,29 @@ namespace pkuyo::parsers {
     };
 
 
+    template<typename token_type, typename return_type>
+    class parser_not : public base_parser<token_type,nullptr_t>{
+    public:
+        typedef base_parser<token_type, nullptr_t> parser_base_t;
+        friend class parser_container<token_type>;
+    protected:
+        explicit parser_not(base_parser<token_type,return_type> *_child_parser) : child_parser(_child_parser) {}
+        parser_base_t::return_t parse_impl(parser_base_t::input_iterator_t &token_it,const parser_base_t::input_iterator_t &token_end) override {
+            if(Peek(token_it,token_end))
+                return std::make_optional(nullptr);
+            return std::nullopt;
+        }
+    public:
+
+        bool Peek(const parser_base_t::input_iterator_t &token_it,const parser_base_t::input_iterator_t &token_end) override {
+            return !child_parser->Peek(token_it,token_end);
+        }
+
+
+    private:
+        base_parser<token_type,return_type>*  child_parser;
+    };
+
     // A parser that only matches the first token.
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
     //  If the match is successful, it returns 'nullptr_t';
@@ -670,9 +693,8 @@ namespace pkuyo::parsers {
         bool Peek(const typename parser_base_t::input_iterator_t &it,
                   const typename parser_base_t::input_iterator_t &end) override
         {
-            // Quick check: at least one character is required and the first character must match
             if (it == end) return false;
-            std::string candidate(1, *it); // Check if the first character might match
+            std::string candidate(it, end);
             return std::regex_search(candidate, regex, std::regex_constants::match_continuous);
         }
 
@@ -1266,12 +1288,14 @@ namespace pkuyo::parsers {
             return container.template More<return_type>(parser);
         }
 
+        auto Not() {
+            return container.template Not<return_type>(parser);
+        }
+
         // Creates a parser_where using *this
         template<typename Pred>
         auto Where(Pred pred) {
-            using WrappedParser = parser_where<token_type, return_type>;
-            auto new_parser = new WrappedParser(this->parser, pred);
-            return container.template CreateWrapper<return_type>(new_parser);
+            return container.template Where<return_type>(parser,pred);
         }
 
         // Creates a parser_optional using *this
@@ -1394,6 +1418,15 @@ namespace pkuyo::parsers {
             }
         }
 
+        template<typename input_type>
+        auto Not(base_parser<token_type,input_type> * parser) {
+            using result_parser_t = parser_not<token_type,input_type>;
+            auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Not",result_parser_t>(parser));
+            auto ptr = tmp.get();
+            parsers_set.emplace(std::move(tmp));
+            return parser_wrapper<token_type, nullptr_t>(*this, ptr);
+        }
+
         // for string
         auto SeqCheck(const char* str) {
             return CheckImpl(std::string_view(str));
@@ -1422,7 +1455,8 @@ namespace pkuyo::parsers {
         auto Regex(const std::string& pattern) {
             using result_parser_t = parser_regex<token_type>;
             try {
-                auto tmp = std::unique_ptr<result_parser_t>(new result_parser_t(pattern));
+
+                auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Regex",result_parser_t>(pattern));
                 tmp->set_name("Regex(" + pattern + ")");
                 auto ptr = tmp.get();
                 parsers_set.emplace(std::move(tmp));
@@ -1705,6 +1739,15 @@ namespace pkuyo::parsers {
             auto ptr = tmp.get();
             parsers_set.emplace(std::move(tmp));
             return parser_wrapper<token_type,target_type>(*this, ptr);
+        }
+
+        template<typename return_type>
+        auto Where(base_parser<token_type, return_type>* source,std::function<bool(return_type)> perd) {
+            using result_parser_t = parser_where<token_type, return_type>;
+            auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Map",result_parser_t>(source, perd));
+            auto ptr = tmp.get();
+            parsers_set.emplace(std::move(tmp));
+            return parser_wrapper<token_type,return_type>(*this, ptr);
         }
 
         // Creates a parser_empty parser.
