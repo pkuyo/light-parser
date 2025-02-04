@@ -45,8 +45,9 @@ int main() {
     auto lazy_value = container.Lazy([&]() { return pValue->Get(); }).Name("Value");
 
     auto elements = (lazy_value >> (comma >> lazy_value).Many()).Map([](auto &&t) {
-        t.second.emplace_back(std::move(t.first));
-        return std::move(t.second);
+        auto & [first,values] = t;
+        values.emplace_back(std::move(first));
+        return std::move(values);
     }).Name("Elements");
 
 
@@ -57,12 +58,13 @@ int main() {
             }).Name("Array");
 
     auto pair = (string >> container.Check(TokenType::COLON).Name(":") >> lazy_value).Map([](auto &&t) {
-        return std::make_unique<PairNode>(std::move(t.first), std::move(t.second));
+        return std::make_unique<PairNode>(std::move(std::get<0>(t)), std::move(std::get<1>(t)));
     }).Name("Pair");
 
     auto members = (pair >> (comma >> pair).Many()).Map([](auto &&t) {
-        t.second.emplace_back(std::move(t.first));
-        return std::move(t.second);
+        auto & [first,values] = t;
+        values.emplace_back(std::move(first));
+        return std::move(values);
     }).Name("Members");
 
     auto object = (container.Check(TokenType::LBRACE).Name("(") >> members.Optional() >> container.Check(TokenType::RBRACE).Name(")") ).Map([](auto &&t) {

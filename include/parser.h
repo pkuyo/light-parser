@@ -167,6 +167,16 @@ namespace pkuyo::parsers {
             is_convertible_to_function<T, Signature>::value;
 
 
+    template <typename T>
+    struct is_tuple : std::false_type {};
+
+
+    template <typename... Args>
+    struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+
+    template <typename T>
+    constexpr bool is_tuple_v = is_tuple<T>::value;
 }
 namespace pkuyo::parsers {
 
@@ -692,14 +702,49 @@ namespace pkuyo::parsers {
         std::regex regex;
     };
 
+    template <typename Tuple>
+    struct filter_single {
+        using type = Tuple;
+    };
+    template <typename T>
+    struct filter_single<std::tuple<T>> {
+        using type = T;
+    };
+    template <typename Tuple, typename FilteredTuple = std::tuple<>>
+    struct filter_nullptr;
+
+    template <typename FilteredTuple>
+    struct filter_nullptr<std::tuple<>, FilteredTuple> {
+        using type = std::conditional_t<std::is_same_v<FilteredTuple,std::tuple<>>,nullptr_t,FilteredTuple>;
+    };
+
+    template <typename T, typename... Ts, typename... FilteredTs>
+    struct filter_nullptr<std::tuple<T, Ts...>, std::tuple<FilteredTs...>> {
+        using type = std::conditional_t<
+                std::is_same_v<nullptr_t,T> || std::is_same_v<std::nullptr_t,T>,
+                typename filter_nullptr<std::tuple<Ts...>, std::tuple<FilteredTs...>>::type,
+                typename filter_nullptr<std::tuple<Ts...>, std::tuple<FilteredTs..., T>>::type
+        >;
+    };
+
+    template <typename Tuple>
+    using filter_nullptr_t = filter_single<typename filter_nullptr<Tuple>::type>::type;
+
+    template<typename input_type_left,typename input_type_right>
+    using then_result_t = filter_nullptr_t<decltype(std::tuple_cat(
+            std::declval<std::conditional_t<is_tuple_v<input_type_left>,input_type_left,std::tuple<input_type_left>>>(),
+            std::declval<std::conditional_t<is_tuple_v<input_type_right>,input_type_right,std::tuple<input_type_right>>>()))>;
+
+
     // A parser that sequentially satisfies both base_parser<..., input_type_left> and base_parser<..., input_type_right>.
     //  If the return_type of one of the sub-parsers is nullptr_t, it directly returns the result of the other sub-parser;
     //  otherwise, it returns std::pair<input_type_left, input_type_right>.
     //  If the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type, typename input_type_left,typename input_type_right>
-    class parser_then : public base_parser<token_type, return_type> {
+    template<typename token_type, typename input_type_left,typename input_type_right>
+    class parser_then : public base_parser<token_type, then_result_t<input_type_left,input_type_right>> {
 
     public:
+        typedef then_result_t<input_type_left,input_type_right> return_type;
         typedef base_parser<token_type, return_type> parser_base_t;
         friend class parser_container<token_type>;
 
@@ -735,8 +780,14 @@ namespace pkuyo::parsers {
             else if constexpr (std::is_same_v<input_type_right,nullptr_t>) {
                 return std::make_optional(std::move(left_re.value()));
             }
+            else if constexpr (is_tuple_v<input_type_left> && is_tuple_v<input_type_right>){
+                return std::make_optional<return_type>(std::tuple_cat(std::move(left_re.value()),std::move(right_re.value())));
+            }
+            else if constexpr (is_tuple_v<input_type_left>){
+                return std::make_optional<return_type>(std::tuple_cat(std::move(left_re.value()),std::make_tuple(std::move(right_re.value()))));
+            }
             else {
-                return std::make_optional<return_type>(std::move(left_re.value()),std::move(right_re.value()));
+                return std::make_optional<return_type>(std::make_tuple(std::move(left_re.value()),std::move(right_re.value())));
             }
         }
 
@@ -1344,15 +1395,15 @@ namespace pkuyo::parsers {
         }
 
         // for string
-        auto Check(const char* str) {
+        auto SeqCheck(const char* str) {
             return CheckImpl(std::string_view(str));
         }
-        auto Check(const wchar_t* str) {
+        auto SeqCheck(const wchar_t* str) {
             return CheckImpl(std::basic_string_view<wchar_t>(str));
         }
 
         template<typename SequenceType>
-        auto Check(const SequenceType& seq) {
+        auto SeqCheck(const SequenceType& seq) {
             return CheckImpl(seq);
         }
 
@@ -1567,32 +1618,13 @@ namespace pkuyo::parsers {
         template<typename input_type_left, typename input_type_right>
         auto Then(base_parser<token_type, input_type_left>*parser_left, base_parser<token_type, input_type_right>* parser_right) {
 
-            if constexpr (std::is_same_v<input_type_left,nullptr_t>) {
-                using result_parser_t = parser_then<token_type,input_type_right,input_type_left, input_type_right>;
+            using result_parser_t = parser_then<token_type, input_type_left, input_type_right>;
 
-                auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Then", result_parser_t>(parser_left,parser_right));
-                auto ptr = tmp.get();
-                parsers_set.emplace(std::move(tmp));
-                return parser_wrapper<token_type, input_type_right>(*this, ptr);
-            }
-            else if constexpr (std::is_same_v<input_type_right,nullptr_t>){
-                using result_parser_t = parser_then<token_type, input_type_left,input_type_left, input_type_right>;
-
-                auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Then", result_parser_t>(parser_left,parser_right));
-                auto ptr = tmp.get();
-                parsers_set.emplace(std::move(tmp));
-                return parser_wrapper<token_type, input_type_left>(*this, ptr);
-            }
-            else{
-                using result_parser_t = parser_then<token_type, std::pair<input_type_left,input_type_right>,input_type_left, input_type_right>;
-
-                auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Then", result_parser_t>(parser_left,parser_right));
-                auto ptr = tmp.get();
-                parsers_set.emplace(std::move(tmp));
-                return parser_wrapper<token_type, std::pair<input_type_left,input_type_right>>(*this, ptr);
-            }
-
-
+            auto tmp = std::unique_ptr<result_parser_t>(
+                    create_parser<"Then", result_parser_t>(parser_left, parser_right));
+            auto ptr = tmp.get();
+            parsers_set.emplace(std::move(tmp));
+            return parser_wrapper<token_type,typename result_parser_t::return_type>(*this, ptr);
         }
         
         // Creates a parser_or parser. It is recommended to use the operator overload form of parser_wrapper.

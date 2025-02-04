@@ -241,13 +241,15 @@ TEST_F(ParserTest, MapParser) {
 
 TEST_F(ParserTest, StringParser) {
     auto str_builder = pkuyo::parsers::parser_container<char>();
-    auto parser = (str_builder.Str("key") | str_builder.Str("word")) >> str_builder.Str("end");
-    std::string tokens("keyend");
+    auto parser = (str_builder.Str("key") | str_builder.Str("word")) >> str_builder.Str("::") >>  str_builder.Regex(R"([^;]*;)");
+    std::string tokens("key::end;");
 
     auto result = parser->Parse(tokens.cbegin(), tokens.cend());
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->first, "key");
-    EXPECT_EQ(result->second, "end");
+
+    auto & [first, symbol, end] = *result;
+    EXPECT_EQ(first, "key");
+    EXPECT_EQ(end, "end;");
 }
 
 TEST_F(ParserTest, ComplexExpression) {
