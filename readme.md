@@ -18,7 +18,7 @@ LightParser is a lightweight parser combinator library based on C++20, designed 
 
 ### Installation
 
-To use this library, simply include the `parser.h` header file in your project. The library is header-only, so no additional compilation steps are required.
+To use this library, simply include the `parser.h` header file in your project. 
 
 ```cpp
 #include "parser.h"
@@ -48,7 +48,7 @@ int main() {
     auto ab_parser = a_parser >> b_parser;
 
     // Parse the input "ab"
-    std::vector<char> input = {'a', 'b'};
+    std::string input = "ab";
     auto result = ab_parser.Parse(input.begin(), input.end());
 
     if (result) {
@@ -67,8 +67,8 @@ int main() {
 
 ```cpp
 // Custom error handling
-container.DefaultError([](auto& parser, auto& token) {
-    if (token) {
+container.DefaultError([](auto& parser, auto&& current, auto && end) {
+    if (current != end) {
         std::cerr << "Unexpected token: " << *token
                   << " at parser: " << parser.Name() << std::endl;
     } else {
@@ -95,7 +95,7 @@ auto lazy_parser = container.Lazy([&container]() {
     return (a_parser >> lazy_parser.Get()) | b_parser;
 });
 
-std::vector<char> input = {'a', 'a', 'b'};
+std::string input  = "aab";
 auto result = lazy_parser.Parse(input.begin(), input.end());
 ```
 
@@ -122,10 +122,10 @@ parser_container class used for storing parsers, managing the lifecycle of parse
 
 | Method              | Description                                       |
 |---------------------|---------------------------------------------------|
+| `Regex()`           | Create a regex-matching parser                    |
 | `Check()`           | Create a parser only check single token           |
 | `SeqCheck()`        | Create a parser only check multi tokens           |
 | `Str()`             | Create a string-matching parser                   |
-| `Regex()`           | Create a regex-matching parser                    |
 | `SingleValue()`     | Create a value parser                             |
 | `SinglePtr()`       | Create a value parser (return unique_ptr<>)       |
 | `SeqValue()`        | Create a multi-value parser                       |
