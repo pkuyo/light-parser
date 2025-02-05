@@ -12,17 +12,15 @@ using TokenType = char;
 
 namespace xml {
 
-    struct TextNode {
-        std::string content;
-    };
+
 
     struct Element;
 
-    using Node = std::variant<TextNode, Element>;
+    using Node = std::variant<std::string,Element>;
 
     struct Element {
         std::string tag_name;
-        std::vector<std::pair<std::string, std::string>> attributes;
+        std::vector<std::tuple<std::string, std::string>> attributes;
         std::vector<Node> children;
     };
 
@@ -32,17 +30,17 @@ namespace xml {
         std::cout << indent << "<" << element.tag_name;
 
         for (const auto& attr : element.attributes) {
-            std::cout << " " << attr.first << "=\"" << attr.second << "\"";
+            std::cout << " " << std::get<0>(attr) << "=\"" << std::get<1>(attr) << "\"";
         }
         std::cout << ">\n";
 
         for (const auto& node : element.children) {
-            if (std::holds_alternative<TextNode>(node)) {
-                const TextNode& textNode = std::get<TextNode>(node);
-                std::cout << indent << "  " << textNode.content << "\n";
+            if (std::holds_alternative<std::string>(node)) {
+                const auto& textNode = std::get<std::string>(node);
+                std::cout << indent << "  " << textNode << "\n";
             } else if (std::holds_alternative<Element>(node)) {
 
-                const Element& childElement = std::get<Element>(node);
+                const auto& childElement = std::get<Element>(node);
                 PrintElement(childElement, indentLevel + 1);
             }
         }
@@ -84,51 +82,38 @@ extern pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement;
 
 
 // space
-auto space = container.SingleValue([](auto && c) {return c == '\n' || c == '\r' || c == ' ';}).Ignore();
-auto skip_space_must = space.More().Ignore();
-auto skip_space = space.Many().Ignore();
+auto space = container.SingleValue([](auto && c) {return c == '\n' || c == '\r' || c == ' ';});
+auto skip_space_must = -+space;
+auto skip_space = -*space;
 
 
-auto tag_name = container.Regex("[A-Za-z_:][A-Za-z0-9_:.-]*").Name("tag_name");
+auto tag_name = container.Regex("[A-Za-z_:][A-Za-z0-9_:.-]*");
 
+auto quoted_str = ( '"' >> container.Regex(R"([^"]*)") >> '"' ) | ('\'' >> container.Regex(R"([^']*)") >> '\'');
 
-auto quoted_str = (container.Check('"') >> container.Regex(R"([^"]*)") >> container.Check('"'))
-                  | (container.Check('\'') >> container.Regex(R"([^']*)") >> container.Check('\''));
-auto attribute = (tag_name >> container.Check('=').Ignore() >> quoted_str)
-        .Map([](auto &&pair) {
-            return std::make_pair(std::get<0>(pair), std::get<1>(pair));
-        })
-        .Name("attribute");
+auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
 
-auto attributes = (skip_space_must >> attribute).Many()
-        .Name("attributes");
+auto text = container.Regex("[^<]+");
 
+auto node =  text | container.Lazy([](){return pElement;});
 
-auto text = container.Regex("[^<]+").Map([](auto && str) { return xml::TextNode{str}; }).Name("text");
+auto content = skip_space >> *node >> skip_space;
 
-// sub-node ( text or element )
-auto node = text | container.Lazy([](){return pElement;}) ;
-auto content = skip_space >> node.Many().Name("content") >> skip_space;
+auto open_tag = -container.Regex(R"(<(?!\/))") >> tag_name >> attributes >> '>';
 
+auto close_tag =  "</" >> tag_name >> '>' ;
 
-auto element =
-        (
-                (container.Regex(R"(<(?!\/))").Ignore() >> tag_name >> attributes >> container.Check('>').Name(">")).Name("open_tag")
-                >> content
-                >> (container.SeqCheck("</").Name("</") >> tag_name >> container.Check('>').Name(">")).Name("close_tag") >> skip_space
-        )
+auto element =  (open_tag >> content>> close_tag>> skip_space)
         //verify tag name
-        .Where([](const auto &t) { return std::get<3>(t) == std::get<0>(t); })
-
-
+         & [](const auto &t) { return std::get<3>(t) == std::get<0>(t); }
         //build xml element
-        .Map([](auto &&parts) {
-            auto &[tag, attrs, children, close_tag] = parts;
+         >>= [](auto &&parts) {
+            auto &[tag, attrs, children, close] = parts;
             return xml::Element{tag, attrs, children};
-        }).Name("element");
+        };
 
 
-auto document = (skip_space >> (container.Regex(R"(<\?xml.*?\?>)") >> skip_space).Many().Ignore() >> skip_space >> element).Name("document");
+auto document = skip_space >> -*(container.Regex(R"(<\?xml.*?\?>)") >> skip_space) >> skip_space >> element;
 
 pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement = element.Get();
 

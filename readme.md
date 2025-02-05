@@ -104,11 +104,11 @@ auto result = lazy_parser.Parse(input.begin(), input.end());
 ```cpp
 // Value transformation
 auto IntParser = container.SingleValue<int>([](char c){ return isdigit(c); })
-    .Map([](int val) { return val * 2; });
+    >>= [](int val) { return val * 2; };
 
 // Side-effect handling
 auto LogParser = container.Check('[')
-    >>= [](auto) { std::cout << "Start array" << std::endl; };
+    <<= [](auto) { std::cout << "Start array" << std::endl; };
 ```
 
 ### Examples
@@ -137,20 +137,23 @@ parser_container class used for storing parsers, managing the lifecycle of parse
 ### parser_wrapper
 parser_wrapper class used for constructing parser combinators and actual expression parsing.
 
-| Operator/Method | Function                                                   |
-|-----------------|------------------------------------------------------------|
-| `>>`            | Sequential composition                                     |
-| `\|`            | Choice composition                                         |
-| `[]`            | Value transformation mapping                               |
-| `>>=`           | Side-effect actions                                        |
-| `Not()`         | Create a "Not" Parser (Prediction Only)                    |
-| `Many()`        | Create a zero-or-more repetition parser                    |
-| `More()`        | Create a one-or-more repetition parser                     |
-| `Ignore()`      | Create a parser ignore orignal result and return `nullptr` |
-| `Optional()`    | Create a optional parser                                   |
-| `OnError()`     | Sets a error handler for parsers                           |               |
-| `Recovery()`    | Sets a panic mode recovery function.                       |
-| `Name()`        | Sets an alias for parser.                                  |
+| Operator/Method | Function                                                    |
+|-----------------|-------------------------------------------------------------|
+| `>>`            | Sequential composition                                      |
+| `\|`            | Choice composition                                          |
+| `[]`            | Sequential composition (with optional parser)               |
+| `>>=`           | Value transformation mapping                                |
+| `<<=`           | Side-effect actions                                         |
+| `!`             | Create a negation Parser (Prediction Only)                  |
+| `~`             | Create a Parser (Prediction Only)                           |
+| `*`             | Create a zero-or-more repetition parser                     |
+| `+`             | Create a one-or-more repetition parser                      |
+| `-`             | Create a parser ignore original result and return `nullptr` |
+| `&`             | Creates a parser_where to filter results using a predicate. |
+| `Optional()`    | Create a optional parser                                    |
+| `OnError()`     | Sets a error handler for parsers                            |               
+| `Recovery()`    | Sets a panic mode recovery function.                        |
+| `Name()`        | Sets an alias for parser.                                   |
 
 
 

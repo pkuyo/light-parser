@@ -134,8 +134,7 @@ TEST_F(ParserTest, OrCombination) {
 }
 
 TEST_F(ParserTest, ManyParser) {
-    auto num = builder.Check("num");
-    auto parser = num.Many();
+    auto parser = *builder.Check("num");
 
     std::vector<TestToken> empty = {};
     EXPECT_TRUE(parser->Parse(empty.cbegin(), empty.cend()).has_value());
@@ -151,7 +150,7 @@ TEST_F(ParserTest, ManyParser) {
 
 TEST_F(ParserTest, SemanticActionParser) {
     std::string output;
-    auto parser = builder.SingleValue("num") >>= [&output] (auto && t) { output = t.value;};
+    auto parser = builder.SingleValue("num") <<= [&output] (auto && t) { output = t.value;};
 
     std::vector<TestToken> input = {{"num"}};
     auto result = parser->Parse(input.cbegin(), input.cend());
@@ -161,8 +160,7 @@ TEST_F(ParserTest, SemanticActionParser) {
 }
 
 TEST_F(ParserTest, MoreParser) {
-    auto num = builder.Check("num");
-    auto parser = num.More();
+    auto parser = +builder.Check("num");
 
 
     std::vector<TestToken> three_nums = {{"num"},
@@ -243,7 +241,7 @@ TEST_F(ParserTest, MapParser) {
 
 TEST_F(ParserTest, NotParser) {
     auto str_builder = pkuyo::parsers::parser_container<char>();
-    auto parser = str_builder.Str("No").Not() >> str_builder.Str("No").Optional().Ignore() >> str_builder.Str("Yes");
+    auto parser = !str_builder.Str("No") >> -str_builder.Str("No").Optional() >> str_builder.Str("Yes");
     std::string tokens("Yes");
     std::string no_tokens("NoYes");
 
@@ -257,28 +255,28 @@ TEST_F(ParserTest, NotParser) {
 }
 TEST_F(ParserTest, StringParser) {
     auto str_builder = pkuyo::parsers::parser_container<char>();
-    auto parser = (str_builder.Str("key") | str_builder.Str("word")) >> str_builder.Str("::") >>  str_builder.Regex(R"([^;]*;)");
+    auto parser = (str_builder.Str("key") | str_builder.Str("word")) >> "::" >>  str_builder.Regex(R"([^;]*;)");
     std::string tokens("key::end;");
 
     auto result = parser->Parse(tokens.cbegin(), tokens.cend());
     ASSERT_TRUE(result.has_value());
 
-    auto & [first, symbol, end] = *result;
+    auto & [first, end] = *result;
     EXPECT_EQ(first, "key");
     EXPECT_EQ(end, "end;");
 }
 
 TEST_F(ParserTest, ComplexExpression) {
     auto num = builder.SingleValue<int>("num", [](const TestToken &t) {
-        return std::atoi(t.value.c_str());
+        return 12;
     });
     auto add = builder.Check("+");
     auto mul = builder.Check("*");
 
     auto factor = num | (builder.Check("(") >> num >> builder.Check(")"));
 
-    auto term = factor >> (mul >> factor).Many();
-    auto expr = term >> (add >> term).Many();
+    auto term = factor >> *(mul >> factor);
+    auto expr = term >> *(add >> term);
 
 // (5)*3+2
     std::vector<TestToken> tokens = {

@@ -15,8 +15,7 @@ int main() {
     // Terminal Symbol
 
     // Defines number parsers.
-    auto number = container.Regex(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))")
-            .Map([](auto && digits) {return std::atof(digits.c_str()); }).Name("number");
+    auto number = (container.Regex(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))") >>= [](auto && digits) {return std::atof(digits.c_str()); }).Name("number");
 
 
     // Defines parsers for brackets and operators.
@@ -43,7 +42,7 @@ int main() {
 
     auto factor = (number | (lparen >> container.Lazy([&]() {return pExpr;}) >> rparen)).Name("factor");
 
-    auto term = (factor >> ((mul | div) >> factor).Many()).Map([](auto && tuple) {
+    auto term = ( (factor >> *((mul | div) >> factor)) >>= [](auto && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '*') result *= num;
@@ -52,7 +51,7 @@ int main() {
         return result;
     }).Name("term");
 
-    auto expression = (term >>((add | sub) >> term).Many()).Map([](auto && tuple) {
+    auto expression = ( (term >> *((add | sub) >> term)) >>= [](auto && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '+') result += num;

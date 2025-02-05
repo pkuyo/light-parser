@@ -34,7 +34,7 @@ int main() {
     //bool
     auto true_false = (container.SinglePtr<BoolNode>(TokenType::FALSE) | container.SinglePtr<BoolNode>(TokenType::TRUE)).Name("Bool");
 
-    auto null = container.SinglePtr<NullNode>(TokenType::NULL_).Name("Null");
+    auto null = container.SinglePtr<NullNode>(TokenType::NULL_).Name("Null") >>= [](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); };
 
     auto comma = container.Check(TokenType::COMMA).Name(",");
 
@@ -44,36 +44,35 @@ int main() {
 
     auto lazy_value = container.Lazy([&]() { return pValue->Get(); }).Name("Value");
 
-    auto elements = (lazy_value >> (comma >> lazy_value).Many()).Map([](auto &&t) {
+    auto elements = (lazy_value >> *(comma >> lazy_value)).Map([](auto &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
     }).Name("Elements");
 
 
-    auto array = (container.Check(TokenType::LBRACKET).Name("[") >> elements.Optional() >> container.Check(TokenType::RBRACKET).Name("]")).Map(
+    auto array = (TokenType::LBRACKET >> elements.Optional() >>TokenType::RBRACKET).Map(
             [](auto &&t) {
                 if (!t) return std::make_unique<ArrayNode>(std::vector<std::unique_ptr<AstNode>>());
                 return std::make_unique<ArrayNode>(std::move(t.value()));
             }).Name("Array");
 
-    auto pair = (string >> container.Check(TokenType::COLON).Name(":") >> lazy_value).Map([](auto &&t) {
+    auto pair = (string >> TokenType::COLON >> lazy_value).Map([](auto &&t) {
         return std::make_unique<PairNode>(std::move(std::get<0>(t)), std::move(std::get<1>(t)));
     }).Name("Pair");
 
-    auto members = (pair >> (comma >> pair).Many()).Map([](auto &&t) {
+    auto members = (pair >> *(comma >> pair)).Map([](auto &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
     }).Name("Members");
 
-    auto object = (container.Check(TokenType::LBRACE).Name("(") >> members.Optional() >> container.Check(TokenType::RBRACE).Name(")") ).Map([](auto &&t) {
+    auto object = ( TokenType::LBRACE >> members.Optional() >> TokenType::RBRACE ).Map([](auto &&t) {
         if (!t) return std::make_unique<ObjectNode>(std::vector<std::unique_ptr<PairNode>>());
         return std::make_unique<ObjectNode>(std::move(t.value()));
     }).Name("Object");
 
-    auto value = (null.Map([](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); })
-                 | object | array | string | number | true_false).Name("Value");
+    auto value = ( null | object | array | string | number | true_false).Name("Value");
 
     pValue = &value;
 

@@ -11,10 +11,10 @@ int main() {
     using namespace pkuyo::parsers;
 
     auto container = parser_container<char>();
-    auto mapper= []( const string_view && t){return string(t) + ",world!";};
-    auto parser = container.SeqValue<string,string_view>("Hello") [mapper] >>= [](auto &&) { cout << "parsing!" << endl;};
 
-    string input("Hello");
+    auto parser = ((container.Str("Hello") >> ",Parser!") <<= [](auto &&) { cout << "parsing" << endl; }) >>= [](auto && t){return string(t) + ",world!";} ;
+
+    string input("Hello,Parser!");
 
     auto result = parser->Parse(input.cbegin(),input.cend());
 

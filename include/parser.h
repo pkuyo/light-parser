@@ -7,8 +7,8 @@
  * - parser_wrapper: A wrapper class for safely using and constructing parsers.
  *
  * @author pkuyo
- * @date 2025-02-04
- * @version 0.1.1
+ * @date 2025-02-05
+ * @version 0.1.2
  * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
  *
  * @warning This library is still under development, and the API may change.
@@ -312,7 +312,7 @@ namespace pkuyo::parsers {
         }
     };
 
-
+    // A parser that only peek tokens, where child_parser->Peek() == false, returning 'nullptr'
     template<typename token_type, typename return_type>
     class parser_not : public base_parser<token_type,nullptr_t>{
     public:
@@ -329,6 +329,30 @@ namespace pkuyo::parsers {
 
         bool Peek(const parser_base_t::input_iterator_t &token_it,const parser_base_t::input_iterator_t &token_end) override {
             return !child_parser->Peek(token_it,token_end);
+        }
+
+
+    private:
+        base_parser<token_type,return_type>*  child_parser;
+    };
+
+    // A parser that only peek tokens, where child_parser->Peek() == true, returning 'nullptr'
+    template<typename token_type, typename return_type>
+    class parser_pred : public base_parser<token_type,nullptr_t>{
+    public:
+        typedef base_parser<token_type, nullptr_t> parser_base_t;
+        friend class parser_container<token_type>;
+    protected:
+        explicit parser_pred(base_parser<token_type,return_type> *_child_parser) : child_parser(_child_parser) {}
+        parser_base_t::return_t parse_impl(parser_base_t::input_iterator_t &token_it,const parser_base_t::input_iterator_t &token_end) override {
+            if(Peek(token_it,token_end))
+                return std::make_optional(nullptr);
+            return std::nullopt;
+        }
+    public:
+
+        bool Peek(const parser_base_t::input_iterator_t &token_it,const parser_base_t::input_iterator_t &token_end) override {
+            return child_parser->Peek(token_it,token_end);
         }
 
 
@@ -1195,21 +1219,21 @@ namespace pkuyo::parsers {
         parser_container<token_type>& Container() {return container;}
 
 
-        // Overloads '[]' for semantic action injection, returning the injected function's result.
-        template <typename Action>
-        auto operator[](Action&& action) {
-            using new_return_t = decltype(action(std::declval<return_type>()));
+        // Overloads '>>=' for semantic action injection, returning the injected function's result.
+        template <typename Mapper>
+        auto operator>>=(Mapper&& mapper) {
+            using new_return_t = decltype(mapper(std::declval<return_type>()));
             return container.template Map<return_type, new_return_t>(
                     parser,
-                    [action = std::forward<Action>(action)](return_type&& val) {
+                    [action = std::forward<Mapper>(mapper)](return_type&& val) {
                         return action(std::forward<return_type>(val));
                     }
             );
         }
 
-        // Overloads '>=' for semantic action injection, retaining the original return value.
+        // Overloads '<<=' for semantic action injection, retaining the original return value.
         template <typename Action>
-        auto operator>>=(Action&& action) {
+        auto operator<<=(Action&& action) {
             return container.template Map<return_type, return_type>(
                     parser,
                     [action = std::forward<Action>(action)](return_type&& val) {
@@ -1217,6 +1241,29 @@ namespace pkuyo::parsers {
                         return val; // return original value
                     }
             );
+        }
+
+        //Creates parser_where using *this and pred function.
+        template <typename Action>
+        auto operator&(Action&& pred) {
+            return container.template Where<return_type>(
+                    parser,
+                    [action = std::forward<Action>(pred)](return_type&& val) {
+                        return action(std::forward<return_type>(val));
+                    }
+            );
+        }
+
+        // Creates a parser_then using *this and 'other'.
+        template<typename other_return_t>
+        auto operator>>(parser_wrapper<token_type, other_return_t> other) {
+            return container.template Then<return_type, other_return_t>(parser, other.parser);
+        }
+
+        // Creates a parser_then using *this and 'other.Optional()'.
+        template<typename other_return_t>
+        auto operator[](parser_wrapper<token_type, other_return_t> other) {
+            return *this >> other.Optional();
         }
         // Creates a parser_or using *this and 'other'.
         // If one of the child parsers' return type is nullptr_t, the return type of parser_or will be the return type of the other child parser.
@@ -1259,11 +1306,21 @@ namespace pkuyo::parsers {
 
         }
 
-        // Creates a parser_then using *this and 'other'.
-        template<typename other_return_t>
-        auto operator>>(parser_wrapper<token_type, other_return_t> other) {
-            return container.template Then<return_type, other_return_t>(parser, other.parser);
-        }
+        // Creates a parser_not that only pred tokens using *this.
+        auto operator!() {return Not();}
+
+        // Creates a parser_many using *this.
+        auto operator*() {return Many();}
+
+        // Creates a parser_many using *this.
+        auto operator+() {return More();}
+
+        // Creates a parser that only pred tokens using *this.
+        auto operator~() {return Pred();}
+
+        // Creates a parser that ignord original output and return nullptr using *this.
+        auto operator-() {return Ignore();}
+
 
         // Creates a parser_then using *this and 'other'.
         template<typename other_return_t>
@@ -1287,8 +1344,15 @@ namespace pkuyo::parsers {
             return container.template More<return_type>(parser);
         }
 
+        // Creates a parser_not that only pred tokens.
         auto Not() {
             return container.template Not<return_type>(parser);
+        }
+
+
+        // Creates a parser that only pred tokens.
+        auto Pred() {
+            return container.template Pred<return_type>(parser);
         }
 
         // Creates a parser_where using *this
@@ -1343,21 +1407,39 @@ namespace pkuyo::parsers {
 
     };
 
-    template<typename token_type, typename R>
+    template<typename token_type, typename R,typename chr>
     parser_wrapper<token_type, R> operator>>(
-            const char* str,
+            const chr* str,
             parser_wrapper<token_type, R> right_parser
     ) {
-        auto check_parser = right_parser.Container().Check(std::string_view(str));
+        auto check_parser = right_parser.Container().SeqCheck(std::basic_string_view<chr>(str));
         return check_parser >> right_parser;
     }
 
-    template<typename token_type, typename R>
+    template<typename token_type, typename R,typename chr>
     parser_wrapper<token_type, R> operator>>(
             parser_wrapper<token_type, R> left_parser,
-            const char* str
+            const chr* str
     ) {
-        auto check_parser = left_parser.Container().Check(std::string_view(str));
+        auto check_parser = left_parser.Container().SeqCheck(std::basic_string_view<chr>(str));
+        return left_parser >> check_parser;
+    }
+
+    template<typename token_type, typename R,typename cmp_type>
+    parser_wrapper<token_type, R> operator>>(
+            const cmp_type & cmp,
+            parser_wrapper<token_type, R> right_parser
+    ) {
+        auto check_parser = right_parser.Container().Check(cmp);
+        return check_parser >> right_parser;
+    }
+
+    template<typename token_type, typename R,typename cmp_type>
+    parser_wrapper<token_type, R> operator>>(
+            parser_wrapper<token_type, R> left_parser,
+            const cmp_type & cmp
+    ) {
+        auto check_parser = left_parser.Container().Check(cmp);
         return left_parser >> check_parser;
     }
 
@@ -1428,6 +1510,15 @@ namespace pkuyo::parsers {
             return parser_wrapper<token_type, nullptr_t>(*this, ptr);
         }
 
+        template<typename input_type>
+        auto Pred(base_parser<token_type,input_type> * parser) {
+            using result_parser_t = parser_pred<token_type,input_type>;
+            auto tmp = std::unique_ptr<result_parser_t>(create_parser<"Pred",result_parser_t>(parser));
+            auto ptr = tmp.get();
+            parsers_set.emplace(std::move(tmp));
+            return parser_wrapper<token_type, nullptr_t>(*this, ptr);
+        }
+
         // for string
         auto SeqCheck(const char* str) {
             return CheckImpl(std::string_view(str));
@@ -1452,7 +1543,7 @@ namespace pkuyo::parsers {
 
         }
 
-        //TODO: Comment
+        // Creates a parser_regex parser that match using std::regex.
         auto Regex(const std::string& pattern) {
             using result_parser_t = parser_regex<token_type>;
             try {
