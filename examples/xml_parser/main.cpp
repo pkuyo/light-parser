@@ -48,9 +48,9 @@ namespace xml {
     }
 
 }
-
-pkuyo::parsers::parser_container<TokenType> container;
-extern pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement;
+namespace xml_parser {
+    pkuyo::parsers::parser_container<TokenType> container;
+    extern pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement;
 
 /*
  * ---Terminal Symbol:
@@ -82,46 +82,45 @@ extern pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement;
 
 
 // space
-auto space = container.SingleValue([](auto && c) {return c == '\n' || c == '\r' || c == ' ';});
-auto skip_space_must = -+space;
-auto skip_space = -*space;
+    auto space = container.SingleValue([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
+    auto skip_space_must = - +space;
+    auto skip_space = -*space;
 
 
-auto tag_name = container.Regex("[A-Za-z_:][A-Za-z0-9_:.-]*");
+    auto tag_name = container.Regex("[A-Za-z_:][A-Za-z0-9_:.-]*");
 
-auto quoted_str = ( '"' >> container.Regex(R"([^"]*)") >> '"' ) | ('\'' >> container.Regex(R"([^']*)") >> '\'');
+    auto quoted_str = ('"' >> container.Regex(R"([^"]*)") >> '"') | ('\'' >> container.Regex(R"([^']*)") >> '\'');
 
-auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
+    auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
 
-auto text = container.Regex("[^<]+");
+    auto text = container.Regex("[^<]+");
 
-auto node =  text | container.Lazy([](){return pElement;});
+    auto node = text | container.Lazy([]() { return pElement; });
 
-auto content = skip_space >> *node >> skip_space;
+    auto content = skip_space >> *node >> skip_space;
 
-auto open_tag = -container.Regex(R"(<(?!\/))") >> tag_name >> attributes >> '>';
+    auto open_tag = -container.Regex(R"(<(?!\/))") >> tag_name >> attributes >> '>';
 
-auto close_tag =  "</" >> tag_name >> '>' ;
+    auto close_tag = "</" >> tag_name >> '>';
 
-auto element =  (open_tag >> content>> close_tag>> skip_space)
-        //verify tag name
-         & [](const auto &t) { return std::get<3>(t) == std::get<0>(t); }
-        //build xml element
-         >>= [](auto &&parts) {
-            auto &[tag, attrs, children, close] = parts;
-            return xml::Element{tag, attrs, children};
-        };
+    auto element = (open_tag >> content >> close_tag >> skip_space)
+                   //verify tag name
+                   & [](const auto &t) { return std::get<3>(t) == std::get<0>(t); }
+                           //build xml element
+                           >>= [](auto &&parts) {
+                auto &[tag, attrs, children, close] = parts;
+                return xml::Element{tag, attrs, children};
+            };
 
 
-auto document = skip_space >> -*(container.Regex(R"(<\?xml.*?\?>)") >> skip_space) >> skip_space >> element;
+    auto document = skip_space >> -*(container.Regex(R"(<\?xml.*?\?>)") >> skip_space) >> skip_space >> element;
 
-pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement = element.Get();
+    pkuyo::parsers::base_parser<TokenType, xml::Element> *pElement = element.Get();
 
+}
 
 int main() {
-    container.DefaultError([](auto && self,auto && current, auto && end) {
-        throw pkuyo::parsers::parser_exception(current != end ? std::format("{}",std::string(current,end)) : "EOF", self.Name());
-    });
+
     std::string xml = R"(
     <?xml version="1.0" encoding="utf-8"?>
     <root>
@@ -132,7 +131,7 @@ int main() {
     </root>)";
 
     try {
-        auto result = document.Get()->Parse(xml.begin(), xml.end());
+        auto result = xml_parser::document.Get()->Parse(xml.begin(), xml.end());
         if (result) {
             std::cout << "XML parsed successfully!\n";
             xml::PrintElement(result.value());

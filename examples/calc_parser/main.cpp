@@ -8,9 +8,10 @@
 
 using namespace pkuyo::parsers;
 
-int main() {
-    parser_container<char> container;
 
+
+namespace num_parser {
+    parser_container<char> container;
 
     // Terminal Symbol
 
@@ -18,7 +19,7 @@ int main() {
     auto number = (container.Regex(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))") >>= [](auto && digits) {return std::atof(digits.c_str()); }).Name("number");
 
 
-    // Defines parsers for brackets and operators.
+// Defines parsers for brackets and operators.
     auto lparen = container.Check('(').Name("(");
     auto rparen = container.Check(')').Name(")");
 
@@ -28,16 +29,16 @@ int main() {
     auto div = container.SingleValue('/').Name("/");
 
 
-    // Non-terminal Symbol
+// Non-terminal Symbol
 
-    /*
-     * expression   = term { ( ADD | SUB ) term }
-     * term         = factor { ( MUL | DIV ) factor }
-     * factor       = NUMBER | LPAREN expression RPAREN
-     */
+/*
+ * expression   = term { ( ADD | SUB ) term }
+ * term         = factor { ( MUL | DIV ) factor }
+ * factor       = NUMBER | LPAREN expression RPAREN
+ */
 
-    // Recursive definitions of expression, term, and factor.
-    base_parser<char, double>* pExpr;
+// Recursive definitions of expression, term, and factor.
+    extern base_parser<char, double>* pExpr;
 
 
     auto factor = (number | (lparen >> container.Lazy([&]() {return pExpr;}) >> rparen)).Name("factor");
@@ -59,12 +60,17 @@ int main() {
         }
         return result;
     }).Name("expression");
-    pExpr = expression.Get();
+
+    base_parser<char, double>* pExpr = expression.Get();
+}
+
+int main() {
+
 
 
     std::string input = "3.14+5*(2-4)";
 
-    auto result = expression->Parse(input.begin(), input.end());
+    auto result = num_parser::expression->Parse(input.begin(), input.end());
 
     if (result) std::cout << "Result: " << *result << std::endl;
 
