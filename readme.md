@@ -36,21 +36,21 @@ int main() {
     using namespace pkuyo::parsers;
 
     // Create a parser container
-    parser_container<char> container;
 
     // Define a parser that matches the character 'a'
-    auto a_parser = container.SingleValue('a');
+    auto a_parser = SingleValue<char>('a');
 
     // Define a parser that matches the character 'b'
-    auto b_parser = container.SingleValue('b');
+    auto b_parser = SingleValue<char>('b');
 
     // Combine the parsers to match 'a' followed by 'b'
     auto ab_parser = a_parser >> b_parser;
 
     // Parse the input "ab"
     std::string input = "ab";
-    auto result = ab_parser.Parse(input.begin(), input.end());
+    auto result = ab_parser.Parse(input);
 
+    // type of result is 'std::optional<std::tuple<char,char>>'
     if (result) {
         std::cout << "Parsing succeeded!" << std::endl;
     } else {
@@ -67,8 +67,8 @@ int main() {
 
 ```cpp
 // Custom error handling
-container.DefaultError([](auto& parser, auto&& current, auto && end) {
-    if (current != end) {
+default_parser_error_handler<YourToken>::DefaultError([](auto & parser, auto && token) {
+    if (token) {
         std::cerr << "Unexpected token: " << *token
                   << " at parser: " << parser.Name() << std::endl;
     } else {
@@ -77,7 +77,7 @@ container.DefaultError([](auto& parser, auto&& current, auto && end) {
 });
 
 // Set panic mode recovery points
-container.DefaultRecovery([](char c) {
+default_parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
     return c == ';';  // Recover parsing at semicolons
 });
 ```
@@ -87,28 +87,40 @@ container.DefaultRecovery([](char c) {
 #### Lazy Parsing
 
 ```cpp
-parser_container<char> container;
 
-auto lazy_parser = container.Lazy([&container]() {
-    auto a_parser = container.SingleValue('a');
-    auto b_parser = container.SingleValue('b');
-    return (a_parser >> lazy_parser.Get()) | b_parser;
-});
+struct lazy_parser;
+auto parser = Lazy<char,lazy_parser>();
+        
+auto real_parser = SingleValue<char>('a') >> 'b';
+
+struct lazy_parser : public base_parser<char,lazy_parser> {
+    
+    //The return type MUST be the exact type name; auto cannot be used.
+    std::optional<char> parse_impl(auto& begin, auto end) const {
+        return real_parser.Parse(begin,end);
+    }
+    bool peek_impl(auto begin, auto end) const {
+        return real_parser.Peek(begin,end);
+    }
+};
 
 std::string input  = "aab";
-auto result = lazy_parser.Parse(input.begin(), input.end());
+auto result = parser.Parse(input);
+
 ```
 
 
 #### Semantic Actions
 ```cpp
-// Value transformation
-auto IntParser = container.SingleValue<int>([](char c){ return isdigit(c); })
+// The parameter types of the lambda expression MUST be the exact type names; auto cannot be used.
+
+// Value transformation 
+auto IntParser = SingleValue<char,int>([](char c){ return isdigit(c); })
     >>= [](int val) { return val * 2; };
 
 // Side-effect handling
-auto LogParser = container.Check('[')
-    <<= [](auto) { std::cout << "Start array" << std::endl; };
+auto LogParser = Check<char>('[')
+    <<= [](nullptr_t) { std::cout << "Start array" << std::endl; };
 ```
 
 ### Examples
@@ -117,8 +129,7 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 ## API Reference
 
 
-### parser_container
-parser_container class used for storing parsers, managing the lifecycle of parsers.
+### Global Method
 
 | Method              | Description                                       |
 |---------------------|---------------------------------------------------|
@@ -134,26 +145,25 @@ parser_container class used for storing parsers, managing the lifecycle of parse
 | `DefaultRecovery()` | Sets a default panic mode recovery function       |
 
 
-### parser_wrapper
-parser_wrapper class used for constructing parser combinators and actual expression parsing.
+### base_parser
+base_parser class used for constructing parser combinators and actual expression parsing.
 
-| Operator/Method | Function                                                    |
-|-----------------|-------------------------------------------------------------|
-| `>>`            | Sequential composition                                      |
-| `\|`            | Choice composition                                          |
-| `[]`            | Sequential composition (with optional parser)               |
-| `>>=`           | Value transformation mapping                                |
-| `<<=`           | Side-effect actions                                         |
-| `!`             | Create a negation Parser (Prediction Only)                  |
-| `~`             | Create a Parser (Prediction Only)                           |
-| `*`             | Create a zero-or-more repetition parser                     |
-| `+`             | Create a one-or-more repetition parser                      |
-| `-`             | Create a parser ignore original result and return `nullptr` |
-| `&`             | Creates a parser_where to filter results using a predicate. |
-| `Optional()`    | Create a optional parser                                    |
-| `OnError()`     | Sets a error handler for parsers                            |               
-| `Recovery()`    | Sets a panic mode recovery function.                        |
-| `Name()`        | Sets an alias for parser.                                   |
+| Operator / Method | Function                                                                                    |
+|-------------------|---------------------------------------------------------------------------------------------|
+| `>>`              | Sequential composition (return `tuple<left,right>`)                                         |
+| `\|`              | Choice composition     (return `std::variant<l_type,r_type>(l_type != r_type)` or `l_type`) |
+| `>>=`             | Value transformation mapping                                                                |
+| `<<=`             | Side-effect actions                                                                         |
+| `!`               | Create a negation Parser (Prediction Only)                                                  |
+| `&`               | Create a Parser (Prediction Only)                                                           |
+| `~`               | Create a optional parser      (return `optional<t>`)                                        |
+| `*`               | Create a zero-or-more repetition parser  (return `vector<t>` or `basic_string<t>`)          |
+| `+`               | Create a one-or-more repetition parser   (return `vector<t>` or `basic_string<t>`)          |
+| `-`               | Create a parser ignore original result and return `nullptr`                                 |
+| `&&`              | Creates a parser_where to filter results.                                                   |
+| `OnError()`       | Sets a error handler for parsers                                                            |               
+| `Recovery()`      | Sets a panic mode recovery function.                                                        |
+| `Name()`          | Sets an alias for parser.                                                                   |
 
 
 

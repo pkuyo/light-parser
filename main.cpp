@@ -10,13 +10,13 @@ int main() {
     using namespace std;
     using namespace pkuyo::parsers;
 
-    auto container = parser_container<char>();
 
-    auto parser = ((container.Str("Hello") >> ",Parser!") <<= [](auto &&) { cout << "parsing" << endl; }) >>= [](auto && t){return string(t) + ",world!";} ;
+    auto parser = ((Str<char>("Hello") >> ",Parser!") <<= [](const std::string_view &) { cout << "parsing" << endl; })
+                    >>= [](const std::string_view & t){return string(t) + ",world!";} ;
 
     string input("Hello,Parser!");
 
-    auto result = parser->Parse(input.cbegin(),input.cend());
+    auto result = parser.Parse(input);
 
     if(result) {
         cout << *result << endl;

@@ -11,22 +11,21 @@ using namespace pkuyo::parsers;
 
 
 namespace num_parser {
-    parser_container<char> container;
 
     // Terminal Symbol
 
     // Defines number parsers.
-    auto number = (container.Regex(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))") >>= [](auto && digits) {return std::atof(digits.c_str()); }).Name("number");
+    auto number = (Regex<char>(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))") >>= [](std::string && digits) {return std::atof(digits.data()); }).Name("number");
 
 
 // Defines parsers for brackets and operators.
-    auto lparen = container.Check('(').Name("(");
-    auto rparen = container.Check(')').Name(")");
+    auto lparen = Check<char>('(').Name("(");
+    auto rparen = Check<char>(')').Name(")");
 
-    auto add = container.SingleValue('+').Name("+");
-    auto sub = container.SingleValue('-').Name("-");
-    auto mul = container.SingleValue('*').Name("*");
-    auto div = container.SingleValue('/').Name("/");
+    auto add = SingleValue<char>('+').Name("+");
+    auto sub = SingleValue<char>('-').Name("-");
+    auto mul = SingleValue<char>('*').Name("*");
+    auto div = SingleValue<char>('/').Name("/");
 
 
 // Non-terminal Symbol
@@ -38,12 +37,11 @@ namespace num_parser {
  */
 
 // Recursive definitions of expression, term, and factor.
-    extern base_parser<char, double>* pExpr;
+    struct LazyExpr;
 
+    auto factor = (number | (lparen >> Lazy<char,LazyExpr>() >> rparen)).Name("factor");
 
-    auto factor = (number | (lparen >> container.Lazy([&]() {return pExpr;}) >> rparen)).Name("factor");
-
-    auto term = ( (factor >> *((mul | div) >> factor)) >>= [](auto && tuple) {
+    auto term = ( (factor >> *((mul | div) >> factor)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '*') result *= num;
@@ -52,7 +50,7 @@ namespace num_parser {
         return result;
     }).Name("term");
 
-    auto expression = ( (term >> *((add | sub) >> term)) >>= [](auto && tuple) {
+    auto expression = ( (term >> *((add | sub) >> term)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '+') result += num;
@@ -61,7 +59,14 @@ namespace num_parser {
         return result;
     }).Name("expression");
 
-    base_parser<char, double>* pExpr = expression.Get();
+    struct LazyExpr : public base_parser<char,LazyExpr> {
+         std::optional<double> parse_impl(auto& begin, auto end) const {
+            return expression.Parse(begin,end);
+        }
+        bool peek_impl(auto begin, auto end) const {
+            return expression.Peek(begin,end);
+        }
+    };
 }
 
 int main() {
@@ -70,7 +75,7 @@ int main() {
 
     std::string input = "3.14+5*(2-4)";
 
-    auto result = num_parser::expression->Parse(input.begin(), input.end());
+    auto result = num_parser::expression.Parse(input);
 
     if (result) std::cout << "Result: " << *result << std::endl;
 

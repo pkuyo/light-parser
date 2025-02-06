@@ -8,7 +8,7 @@
 
 #include "lexer.h"
 #include "ast_node.h"
-
+#include <string>
 /*
  *   JSON       = Value ;
  *   Value      = Object | Array | STRING | NUMBER | TRUE | FALSE | NULL ;
@@ -20,66 +20,79 @@
  *
 */
 
+template<typename T>
+auto JsonNode(TokenType & type) { return pkuyo::parsers::SinglePtr<TokenType,Token,T>(type);}
 
+namespace json {
+    using namespace pkuyo::parsers;
 
-int main() {
-
-
-    auto container = pkuyo::parsers::parser_container<Token>();
+    using namespace std;
 
 
     //Terminal Symbol
 
-    auto number = container.SinglePtr<NumberNode>(TokenType::NUMBER).Name("Name");
+    auto number = SinglePtr<Token,TokenType,NumberNode>(TokenType::NUMBER).Name("Name");
 
-    auto string = container.SinglePtr<StringNode>(TokenType::STRING).Name("String");
+    auto str = SinglePtr<Token,TokenType,StringNode>(TokenType::STRING).Name("String");
 
     //bool
-    auto true_false = (container.SinglePtr<BoolNode>(TokenType::FALSE) | container.SinglePtr<BoolNode>(TokenType::TRUE)).Name("Bool");
+    auto true_false = (SinglePtr<Token,TokenType,BoolNode>(TokenType::FALSE) |SinglePtr<Token,TokenType,BoolNode>(TokenType::TRUE)).Name("Bool");
 
-    auto null = container.SinglePtr<NullNode>(TokenType::NULL_).Name("Null") >>= [](auto &&t) { return std::unique_ptr<AstNode>(std::move(t)); };
+    auto null = SinglePtr<Token,TokenType,NullNode>(TokenType::NULL_).Name("Null") >>= [](unique_ptr<NullNode> &&t) { return unique_ptr<AstNode>(std::move(t)); };
 
-    auto comma = container.Check(TokenType::COMMA).Name(",");
+    auto comma = Check<Token,TokenType>(TokenType::COMMA).Name(",");
 
     //Non-terminal Symbol
 
-    pkuyo::parsers::parser_wrapper<Token, std::unique_ptr<AstNode>> *pValue = nullptr;
+    struct lazy_value;
 
-    auto lazy_value = container.Lazy([&]() { return pValue->Get(); }).Name("Value");
+    auto l_value = Lazy<Token,lazy_value>().Name("Value");
 
-    auto elements = (lazy_value >> *(comma >> lazy_value)).Map([](auto &&t) {
+    auto elements = ( (l_value >> *(comma >> l_value)) >>= [](tuple<unique_ptr<AstNode>,vector<unique_ptr<AstNode>>> &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
     }).Name("Elements");
 
 
-    auto array = (TokenType::LBRACKET >> elements.Optional() >>TokenType::RBRACKET).Map(
-            [](auto &&t) {
-                if (!t) return std::make_unique<ArrayNode>(std::vector<std::unique_ptr<AstNode>>());
-                return std::make_unique<ArrayNode>(std::move(t.value()));
-            }).Name("Array");
+    auto array = ( (TokenType::LBRACKET >> ~elements >>TokenType::RBRACKET) >>=
+                           [](optional<vector<unique_ptr<AstNode>>> &&t) {
+                               if (!t) return make_unique<ArrayNode>(vector<unique_ptr<AstNode>>());
+                               return make_unique<ArrayNode>(std::move(t.value()));
+                           }).Name("Array");
 
-    auto pair = (string >> TokenType::COLON >> lazy_value).Map([](auto &&t) {
+
+    auto pair =( (str >> TokenType::COLON >> l_value) >>= [](tuple<unique_ptr<StringNode>,unique_ptr<AstNode>> &&t) {
         return std::make_unique<PairNode>(std::move(std::get<0>(t)), std::move(std::get<1>(t)));
     }).Name("Pair");
 
-    auto members = (pair >> *(comma >> pair)).Map([](auto &&t) {
+    auto members = ((pair >> *(comma >> pair)) >>= [](tuple<unique_ptr<PairNode>,vector<unique_ptr<PairNode>>> &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
     }).Name("Members");
 
-    auto object = ( TokenType::LBRACE >> members.Optional() >> TokenType::RBRACE ).Map([](auto &&t) {
+    auto object = ((TokenType::LBRACE >> ~members >> TokenType::RBRACE ) >>= [](optional<vector<unique_ptr<PairNode>>> &&t) -> unique_ptr<ObjectNode> {
         if (!t) return std::make_unique<ObjectNode>(std::vector<std::unique_ptr<PairNode>>());
         return std::make_unique<ObjectNode>(std::move(t.value()));
     }).Name("Object");
 
-    auto value = ( null | object | array | string | number | true_false).Name("Value");
+    auto value = ( null | object | array | str | number | true_false).Name("Value");
 
-    pValue = &value;
 
+    struct lazy_value : public base_parser<char,lazy_value> {
+        std::optional<unique_ptr<AstNode>> parse_impl(auto& begin, auto end) const {
+            return value.Parse(begin,end);
+        }
+        bool peek_impl(auto begin, auto end) const {
+            return value.Peek(begin,end);
+        }
+    };
     auto & parser = value;
+}
+
+int main() {
+
 
     std::string input =R"(
     {
@@ -97,7 +110,7 @@ int main() {
     auto lexer = JSONLexer(input);
     auto tokens = lexer.tokenize();
 
-    auto result = parser->Parse(tokens.cbegin(), tokens.cend());
+    auto result = json::parser.Parse(tokens);
 
     Visitor visitor{};
 

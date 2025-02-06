@@ -8,6 +8,8 @@ include_directories(include)
 
 add_executable(light_parser main.cpp
         include/parser.h
+        include/error_handler.h
+        include/traits.h
 )
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
