@@ -7,6 +7,7 @@
 #include <vector>
 #include <variant>
 #include <iostream>
+#include <chrono>
 
 using TokenType = char;
 
@@ -49,6 +50,8 @@ namespace xml {
     }
 
 }
+
+
 namespace xml {
 
 
@@ -83,37 +86,57 @@ namespace xml {
     using namespace pkuyo::parsers;
     using namespace std;
 
+
+    struct open_tag_check : public base_parser<TokenType,open_tag_check> {
+        optional<nullptr_t> parse_impl(auto& begin, auto end) const {
+            if(peek_impl(begin,end)) {
+                begin++;
+                return nullptr;
+            }
+            return std::nullopt;
+        }
+        bool peek_impl(auto begin, auto end) const {
+            if(begin == end || *begin != '<')
+                return false;
+            if(++begin == end || *begin == '/')
+                return false;
+            return true;
+        }
+    };
+
 // space
-    auto space = SingleValue<TokenType>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
-    auto skip_space_must = -+space;
-    auto skip_space = -*space;
+    auto space = -SingleValue<TokenType>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
+    auto skip_space_must = +space.Name("space");
+    auto skip_space = *space;
+
+
 
 
     struct lazy_element;
 
-    auto tag_name = Regex("[A-Za-z_:][A-Za-z0-9_:.-]*");
+    auto tag_name = +SingleValue<char>([](auto c) {return isalpha(c);});
 
-    auto quoted_str = ('"' >> Regex(R"([^"]*)") >> '"') | ('\'' >> Regex(R"([^']*)") >> '\'');
+    auto quoted_str = ('"' >> Until<char>('"') >> '"') | ('\'' >> Until<char>('\'') >> '\'');
 
     auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
 
-    auto text = Regex("[^<]+");
+    auto text = Until<char>('<');
 
     auto node = text | Lazy<TokenType,lazy_element>();
 
     auto content = skip_space >> *node >> skip_space;
 
-    auto open_tag = -Regex(R"(<(?!\/))") >> tag_name >> attributes >> '>';
+    auto open_tag = open_tag_check()  >> tag_name >> attributes >> '>';
 
     auto close_tag = "</" >> tag_name >> '>';
 
     auto element = (open_tag >> content >> close_tag >> skip_space)
                    //verify tag name
-                   && [](tuple<string,vector<Attr>,vector<Node>,string> &t) { return get<3>(t) == get<0>(t); }
+                   && [](tuple<string,vector<Attr>,vector<Node>,string> &parts) { return get<3>(parts) == get<0>(parts); }
                    //build xml element
                    >>= [](tuple<string,vector<Attr>,vector<Node>,string> &&parts) {
                 auto &[tag, attrs, children, close] = parts;
-                return xml::Element{tag, attrs, children};
+                return xml::Element{std::move(tag), std::move(attrs),std::move(children)};
             };
 
     struct lazy_element : public base_parser<TokenType,lazy_element> {
@@ -129,7 +152,7 @@ namespace xml {
 
 
 
-    auto document = skip_space >> -*(Regex(R"(<\?xml.*?\?>)") >> skip_space) >> skip_space >> element;
+    auto document = skip_space >> element;
 
 
 }
@@ -137,13 +160,24 @@ namespace xml {
 int main() {
 
     std::string xml = R"(
-    <?xml version="1.0" encoding="utf-8"?>
     <root>
         <person id="123">
             <name>John</name>
             <age>30</age>
         </person>
     </root>)";
+
+    //test
+    {
+        using namespace std::chrono;
+        auto start = high_resolution_clock::now();
+
+        for (int i = 0; i < 10000; i++) {
+            xml::document.Parse(xml);
+        }
+        auto end = high_resolution_clock::now();
+        std::cout << (end - start).count() / 1000000.f << std::endl;
+    }
 
     try {
         auto result = xml::document.Parse(xml);
