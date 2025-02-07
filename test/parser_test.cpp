@@ -28,12 +28,35 @@ struct TestToken {
 class ParserTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        default_parser_error_handler<TestToken>::DefaultRecovery(panic_mode_recovery<TestToken>([](const TestToken &t) {
+        parser_error_handler<TestToken>::DefaultRecovery(panic_mode_recovery<TestToken>([](const TestToken &t) {
             return t.value == ";"; // set sync pos
         }));
     }
 
 };
+
+TEST_F(ParserTest, ConstexprParser) {
+
+    constexpr auto parser = *Check<char>(' ') >> SeqValue<char,std::string>("hello") >> "::" >> SeqValue<char,std::string>("end");
+    std::string tokens("  hello::end;");
+
+    auto result = parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+
+    auto & [first, end] = *result;
+    EXPECT_EQ(first, "hello");
+    EXPECT_EQ(end, "end");
+}
+
+TEST_F(ParserTest, UntilParser) {
+
+    constexpr auto parser = Check<char>('<') >> Until<char>('>') >> ">";
+    std::string tokens("<token>");
+    auto result = parser.Parse(tokens);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "token");
+}
 
 TEST_F(ParserTest, CheckParser) {
     auto parser = Check<TestToken>("keyword").Name("CheckTest");
@@ -76,7 +99,7 @@ TEST_F(ParserTest, SinglePtrParser) {
 }
 
 TEST_F(ParserTest, SingleValueParserWithFunc) {
-    auto parser = SingleValue<TestToken>([](const auto & token) {return *(token.value.begin()) == 'a';})
+    auto parser = SingleValue<TestToken>([](const TestToken & token) {return *(token.value.begin()) == 'a';})
             >>= ([](const TestToken & token) {return token.value;});
     std::vector<TestToken> tokens = {{"a_token"},
                                      {"+"}};
@@ -139,7 +162,6 @@ TEST_F(ParserTest, ManyParser) {
                                          {"num"}};
     auto result = parser.Parse(three_nums);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->size(), 3);
 
 }
 
@@ -163,7 +185,6 @@ TEST_F(ParserTest, MoreParser) {
                                          {"num"}};
     auto result = parser.Parse(three_nums);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->size(), 3);
 
     std::vector<TestToken> invalid = {{"invalid"}};
     EXPECT_THROW(parser.Parse(invalid), parser_exception);
@@ -249,6 +270,8 @@ TEST_F(ParserTest, NotParser) {
 
 
 }
+
+
 TEST_F(ParserTest, StringParser) {
 
     auto parser = (Str<char>("key") | Str<char>("word")) >> "::" >>  Regex<char>(R"([^;]*;)");

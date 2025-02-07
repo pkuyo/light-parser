@@ -11,8 +11,9 @@ int main() {
     using namespace pkuyo::parsers;
 
 
-    auto parser = ((Str<char>("Hello") >> ",Parser!") <<= [](const std::string_view &) { cout << "parsing" << endl; })
-                    >>= [](const std::string_view & t){return string(t) + ",world!";} ;
+    constexpr auto parser = ((SeqValue<char,std::string>("Hello") >> ",Parser!")
+                                <<= [](const std::string &) { cout << "parsing" << endl; })
+                                >>= [](const std::string & t){return t + ",world!";} ;
 
     string input("Hello,Parser!");
 

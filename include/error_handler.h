@@ -1,6 +1,17 @@
-//
-// Created by pkuyo on 2025/2/6.
-//
+// error_handler.h
+/**
+ * @file error_handler.h
+ * @brief Implementation of parsing error handling mechanisms, supporting panic mode error recovery.
+ * @author pkuyo
+ * @date 2025-02-07
+ * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
+ *
+ * Includes:
+ * - Standard parsing exception class parser_exception
+ * - Error recovery strategy panic_mode_recovery
+ * - Global error handling configuration template
+ * - Default error handling implementation
+ */
 
 #ifndef LIGHT_PARSER_ERROR_HANDLER_H
 #define LIGHT_PARSER_ERROR_HANDLER_H
@@ -57,7 +68,7 @@ namespace pkuyo::parsers {
 
 
     template<typename token_type>
-    class default_parser_error_handler {
+    class parser_error_handler {
 
         template<typename T>
         friend class _abstract_parser;
@@ -65,12 +76,12 @@ namespace pkuyo::parsers {
     public:
         template<typename FF>
         static void DefaultRecovery(FF && _recovery) {
-            default_parser_error_handler<token_type>::recovery = std::move(panic_mode_recovery<token_type>(_recovery));
+            parser_error_handler<token_type>::recovery = std::move(panic_mode_recovery<token_type>(_recovery));
         }
 
         template<typename FF>
         static void DefaultOnError(FF && _func)  {
-            default_parser_error_handler<token_type>::error_handler =
+            parser_error_handler<token_type>::error_handler =
                     std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>(std::forward<FF>(_func));
         }
     private:
@@ -79,10 +90,11 @@ namespace pkuyo::parsers {
     };
 
     template<typename token_type>
-    panic_mode_recovery<token_type> default_parser_error_handler<token_type>::recovery = panic_mode_recovery<token_type>([](auto && t) {return false;});
+    panic_mode_recovery<token_type> parser_error_handler<token_type>::recovery = panic_mode_recovery<token_type>([](auto && t) {return false;});
 
     template<typename token_type>
-    std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> default_parser_error_handler<token_type>::error_handler([](const _abstract_parser<token_type> & self,auto && token) {
+    std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>
+            parser_error_handler<token_type>::error_handler([](const _abstract_parser<token_type> & self,auto && token) {
 
         if(token) {
             if constexpr(is_formattable<token_type>::value) {

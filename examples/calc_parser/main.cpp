@@ -15,17 +15,18 @@ namespace num_parser {
     // Terminal Symbol
 
     // Defines number parsers.
-    auto number = (Regex<char>(R"([+-]?(?:\d+\.\d+|\d+|\.\d+))") >>= [](std::string && digits) {return std::atof(digits.data()); }).Name("number");
+    constexpr auto number = Name(+SingleValue<char>([](char c) { return isdigit(c);})
+            >>= [](const std::string & digits) {return std::atof(digits.data()); },"number");
 
 
 // Defines parsers for brackets and operators.
-    auto lparen = Check<char>('(').Name("(");
-    auto rparen = Check<char>(')').Name(")");
+    constexpr auto lparen = Check<char>('(');
+    constexpr auto rparen = Check<char>(')');
 
-    auto add = SingleValue<char>('+').Name("+");
-    auto sub = SingleValue<char>('-').Name("-");
-    auto mul = SingleValue<char>('*').Name("*");
-    auto div = SingleValue<char>('/').Name("/");
+    constexpr auto add = SingleValue<char>('+');
+    constexpr auto sub = SingleValue<char>('-');
+    constexpr auto mul = SingleValue<char>('*');
+    constexpr auto div = SingleValue<char>('/');
 
 
 // Non-terminal Symbol
@@ -39,25 +40,25 @@ namespace num_parser {
 // Recursive definitions of expression, term, and factor.
     struct LazyExpr;
 
-    auto factor = (number | (lparen >> Lazy<char,LazyExpr>() >> rparen)).Name("factor");
+    constexpr auto factor = Name(number | (lparen >> Lazy<char,LazyExpr>() >> rparen),"factor");
 
-    auto term = ( (factor >> *((mul | div) >> factor)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
+    constexpr auto term = Name( (factor >> *((mul | div) >> factor)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '*') result *= num;
             else result /= num;
         }
         return result;
-    }).Name("term");
+    },"term");
 
-    auto expression = ( (term >> *((add | sub) >> term)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
+    constexpr auto expression = Name( (term >> *((add | sub) >> term)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '+') result += num;
             else result -= num;
         }
         return result;
-    }).Name("expression");
+    },"expression");
 
     struct LazyExpr : public base_parser<char,LazyExpr> {
          std::optional<double> parse_impl(auto& begin, auto end) const {

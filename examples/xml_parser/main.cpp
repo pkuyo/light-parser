@@ -8,48 +8,10 @@
 #include <variant>
 #include <iostream>
 #include <chrono>
+#include "xml_def.h"
 
 using TokenType = char;
 
-namespace xml {
-
-
-
-    struct Element;
-
-    using Node = std::variant<std::string,Element>;
-    using Attr = std::tuple<std::string, std::string>;
-
-    struct Element {
-        std::string tag_name;
-        std::vector<Attr> attributes;
-        std::vector<Node> children;
-    };
-
-    void PrintElement(const Element& element, int indentLevel = 0) {
-        std::string indent(indentLevel * 2, ' ');
-
-        std::cout << indent << "<" << element.tag_name;
-
-        for (const auto& attr : element.attributes) {
-            std::cout << " " << std::get<0>(attr) << "=\"" << std::get<1>(attr) << "\"";
-        }
-        std::cout << ">\n";
-
-        for (const auto& node : element.children) {
-            if (std::holds_alternative<std::string>(node)) {
-                const auto& textNode = std::get<std::string>(node);
-                std::cout << indent << "  " << textNode << "\n";
-            } else if (std::holds_alternative<Element>(node)) {
-
-                const auto& childElement = std::get<Element>(node);
-                PrintElement(childElement, indentLevel + 1);
-            }
-        }
-        std::cout << indent << "</" << element.tag_name << ">\n";
-    }
-
-}
 
 
 namespace xml {
@@ -105,32 +67,30 @@ namespace xml {
     };
 
 // space
-    auto space = -SingleValue<TokenType>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
-    auto skip_space_must = +space.Name("space");
-    auto skip_space = *space;
-
-
+    constexpr auto space = -SingleValue<TokenType>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
+    constexpr auto skip_space_must = +space;
+    constexpr auto skip_space = *space;
 
 
     struct lazy_element;
 
-    auto tag_name = +SingleValue<char>([](auto c) {return isalpha(c);});
+    constexpr auto tag_name = +SingleValue<char>([](auto c) {return isalpha(c);});
 
-    auto quoted_str = ('"' >> Until<char>('"') >> '"') | ('\'' >> Until<char>('\'') >> '\'');
+    constexpr auto quoted_str = ('"' >> Until<char>('"') >> '"') | ('\'' >> Until<char>('\'') >> '\'');
 
-    auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
+    constexpr auto attributes = *(skip_space_must >> tag_name >> '=' >> quoted_str);
 
-    auto text = Until<char>('<');
+    constexpr auto text = Until<char>('<');
 
-    auto node = text | Lazy<TokenType,lazy_element>();
+    constexpr auto node = text | Lazy<TokenType,lazy_element>();
 
-    auto content = skip_space >> *node >> skip_space;
+    constexpr auto content = skip_space >> *node >> skip_space;
 
-    auto open_tag = open_tag_check()  >> tag_name >> attributes >> '>';
+    constexpr auto open_tag = open_tag_check()  >> tag_name >> attributes >> '>';
 
-    auto close_tag = "</" >> tag_name >> '>';
+    constexpr auto close_tag = "</" >> tag_name >> '>';
 
-    auto element = (open_tag >> content >> close_tag >> skip_space)
+    constexpr auto element = (open_tag >> content >> close_tag >> skip_space)
                    //verify tag name
                    && [](tuple<string,vector<Attr>,vector<Node>,string> &parts) { return get<3>(parts) == get<0>(parts); }
                    //build xml element
@@ -148,13 +108,7 @@ namespace xml {
         }
     };
 
-
-
-
-
-    auto document = skip_space >> element;
-
-
+    constexpr auto document = skip_space >> element;
 }
 
 int main() {

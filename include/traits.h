@@ -1,9 +1,22 @@
-//
-// Created by pkuyo on 2025/2/6.
-//
+// traits.h
+/**
+ * @file traits.h
+ * @brief Type trait metaprogramming utilities, supporting parser type deduction.
+ * @author pkuyo
+ * @date 2025-02-06
+ * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
+ *
+ * Includes:
+ * - Type formatting trait is_formattable
+ * - Function signature deduction tools (GetRet/GetArg)
+ * - Parser result type extraction parser_result_t
+ * - Type combination logic (filter_nullptr_t/filter_or_t)
+ * - Tuple type trait is_tuple
+ */
 
 #ifndef LIGHT_PARSER_TRAITS_H
 #define LIGHT_PARSER_TRAITS_H
+
 #include <type_traits>
 #include <format>
 
@@ -71,21 +84,27 @@ namespace pkuyo::parsers {
     {
         template <typename Ret, typename... Args>
         std::tuple<Args...> getArgs(Ret (*)(Args...));
-
-
         template <typename F, typename Ret, typename... Args>
         std::tuple<Args...>getArgs(Ret (F::*)(Args...));
-
-
         template <typename F, typename Ret, typename... Args>
         std::tuple<Args...> getArgs(Ret (F::*)(Args...) const);
-
         template <typename F>
         decltype(getArgs(&std::remove_reference_t<F>::operator())) getArgs(F);
 
+        template <typename Ret, typename... Args>
+        Ret getRet(Ret (*)(Args...));
+        template <typename F, typename Ret, typename... Args>
+        Ret getRet(Ret (F::*)(Args...));
+        template <typename F, typename Ret, typename... Args>
+        Ret getRet(Ret (F::*)(Args...) const);
+
+        template <typename F>
+        decltype(getRet(&std::remove_reference_t<F>::operator())) getRet(F);
+
 
     };
-
+    template <typename F>
+    using GetRet = decltype(details::getRet(std::declval<F>()));
     template <size_t N,typename F>
     using GetArg =std::tuple_element_t<N,decltype(details::getArgs(std::declval<F>()))>;
     template <typename F>

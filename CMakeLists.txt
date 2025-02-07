@@ -10,6 +10,9 @@ add_executable(light_parser main.cpp
         include/parser.h
         include/error_handler.h
         include/traits.h
+        include/base_parser.h
+        include/compiler_time_parser.h
+        include/runtime_parser.h
 )
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 

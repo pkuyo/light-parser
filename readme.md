@@ -8,12 +8,13 @@ LightParser is a lightweight parser combinator library based on C++20, designed 
 
 ## Features
 
-- **Parser Composition**: Easily combine parsers using operators like `>>` (then), `|` (or), and `[]` (map).
-- **Error Handling**: Built-in support for error recovery and custom error handling.
+- **Parser Composition**: Easily combine parsers using operators like `>>` (then), `|` (or), and `>>=` (map).
 - **Lazy Parsing**: Supports lazy initialization for recursive parser definitions.
+- **Compile-Time Construction**: Syntax parsers can be constructed at compile-time, enabling efficient and optimized parsing logic without runtime overhead.
 - **Customizable Parsers**: Create parsers that return custom types, including smart pointers and user-defined types.
 - **Panic Mode Recovery**: Provides a mechanism for recovering from parsing errors by synchronizing to a known point in the input.
 - **Header-Only Library with Zero Dependencies**: The library is entirely header-based, ensuring portability across platforms and build systems. 
+
 ## Getting Started
 
 ### Installation
@@ -36,15 +37,9 @@ int main() {
     using namespace pkuyo::parsers;
 
     // Create a parser container
-
-    // Define a parser that matches the character 'a'
-    auto a_parser = SingleValue<char>('a');
-
-    // Define a parser that matches the character 'b'
-    auto b_parser = SingleValue<char>('b');
-
+    
     // Combine the parsers to match 'a' followed by 'b'
-    auto ab_parser = a_parser >> b_parser;
+    constexpr auto ab_parser = SingleValue<char>('a') >> 'b';
 
     // Parse the input "ab"
     std::string input = "ab";
@@ -67,7 +62,7 @@ int main() {
 
 ```cpp
 // Custom error handling
-default_parser_error_handler<YourToken>::DefaultError([](auto & parser, auto && token) {
+parser_error_handler<YourToken>::DefaultError([](auto & parser, auto && token) {
     if (token) {
         std::cerr << "Unexpected token: " << *token
                   << " at parser: " << parser.Name() << std::endl;
@@ -77,7 +72,7 @@ default_parser_error_handler<YourToken>::DefaultError([](auto & parser, auto && 
 });
 
 // Set panic mode recovery points
-default_parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
+parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
     return c == ';';  // Recover parsing at semicolons
 });
 ```
@@ -89,9 +84,10 @@ default_parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c)
 ```cpp
 
 struct lazy_parser;
-auto parser = Lazy<char,lazy_parser>();
-        
-auto real_parser = SingleValue<char>('a') >> 'b';
+
+constexpr auto parser = Lazy<char,lazy_parser>();
+
+constexpr auto real_parser = SingleValue<char>('a') >> 'b';
 
 struct lazy_parser : public base_parser<char,lazy_parser> {
     
@@ -115,11 +111,11 @@ auto result = parser.Parse(input);
 // The parameter types of the lambda expression MUST be the exact type names; auto cannot be used.
 
 // Value transformation 
-auto IntParser = SingleValue<char,int>([](char c){ return isdigit(c); })
+constexpr auto IntParser = SingleValue<char,int>([](char c){ return isdigit(c); })
     >>= [](int val) { return val * 2; };
 
 // Side-effect handling
-auto LogParser = Check<char>('[')
+constexpr auto LogParser = Check<char>('[')
     <<= [](nullptr_t) { std::cout << "Start array" << std::endl; };
 ```
 
@@ -131,18 +127,19 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 
 ### Global Method
 
-| Method              | Description                                       |
-|---------------------|---------------------------------------------------|
-| `Regex()`           | Create a regex-matching parser                    |
-| `Check()`           | Create a parser only check single token           |
-| `SeqCheck()`        | Create a parser only check multi tokens           |
-| `Str()`             | Create a string-matching parser                   |
-| `SingleValue()`     | Create a value parser                             |
-| `SinglePtr()`       | Create a value parser (return unique_ptr<>)       |
-| `SeqValue()`        | Create a multi-value parser                       |
-| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>) |
-| `DefaultError()`    | Sets a default error handler for all parsers      |
-| `DefaultRecovery()` | Sets a default panic mode recovery function       |
+| Method              | Description                                         |
+|---------------------|-----------------------------------------------------|
+| `Regex()`           | Create a regex-matching parser   (only for runtime) |
+| `Check()`           | Create a parser only check single token             |
+| `SeqCheck()`        | Create a parser only check multi tokens             |
+| `Str()`             | Create a string-matching parser                     |
+| `SingleValue()`     | Create a value parser                               |
+| `SinglePtr()`       | Create a value parser (return unique_ptr<>)         |
+| `SeqValue()`        | Create a multi-value parser                         |
+| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>)   |
+| `DefaultError()`    | Sets a default error handler for all parsers        |
+| `DefaultRecovery()` | Sets a default panic mode recovery function         |
+| `Name()`            | Sets an alias for parser.                           |
 
 
 ### base_parser
@@ -161,9 +158,6 @@ base_parser class used for constructing parser combinators and actual expression
 | `+`               | Create a one-or-more repetition parser   (return `vector<t>` or `basic_string<t>`)          |
 | `-`               | Create a parser ignore original result and return `nullptr`                                 |
 | `&&`              | Creates a parser_where to filter results.                                                   |
-| `OnError()`       | Sets a error handler for parsers                                                            |               
-| `Recovery()`      | Sets a panic mode recovery function.                                                        |
-| `Name()`          | Sets an alias for parser.                                                                   |
 
 
 
