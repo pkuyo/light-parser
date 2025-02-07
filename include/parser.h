@@ -217,6 +217,45 @@ namespace pkuyo::parsers {
     private:
         cmp_type cmp_value;
     };
+
+
+    // A parser class that checks and stores input values until the input equals a specified comparison value.
+    // This class is used to continuously receive input and stop storing when the input value equals `cmp_value`. It is primarily designed for parsing data under specific conditions
+    template<typename token_type,typename cmp_type>
+    struct parser_until : public pkuyo::parsers::base_parser<token_type,parser_until<token_type,cmp_type>> {
+
+        parser_until(const cmp_type & _cmp) : cmp(_cmp) {}
+
+        auto parse_impl(auto& begin, auto end) const {
+            if constexpr(std::is_same_v<token_type,char> ||std::is_same_v<token_type,wchar_t>) {
+                if (!peek_impl(begin, end))
+                    return std::optional<std::basic_string<token_type>>();
+                std::basic_string<token_type> result;
+                while (begin != end && *begin != cmp) {
+                    result.push_back(*begin);
+                    begin++;
+                }
+                return std::make_optional(std::move(result));
+            }
+            else {
+                if (!peek_impl(begin, end))
+                    return std::optional<std::vector<token_type>>();
+                std::vector<token_type> result;
+                while (begin != end && *begin != cmp) {
+                    result.push_back(*begin);
+                    begin++;
+                }
+                return std::make_optional(std::move(result));
+            }
+        }
+        bool peek_impl(auto begin, auto end) const {
+            if(begin == end || *begin == cmp)
+                return false;
+            return true;
+        }
+        cmp_type  cmp;
+    };
+
     // A parser that matches tokens.
     //  If the match is successful, it returns a 'nullptr'
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
@@ -499,9 +538,11 @@ namespace pkuyo::parsers {
     };
 
 
-    //TODO : Comment for regex
-    template<typename token_type>
-    class parser_regex : public base_parser<token_type, parser_regex<token_type>> {
+    // A parser class that uses regular expressions for comparison.
+    //This class is primarily used to parse and compare input strings using regular expressions.
+    // During prediction, the length of the input string is controlled by the `pred_count` parameter, which defaults to 1.
+    template<typename token_type,size_t pred_count>
+    class parser_regex : public base_parser<token_type, parser_regex<token_type,pred_count>> {
 
     public:
 
@@ -518,7 +559,7 @@ namespace pkuyo::parsers {
         template <typename Iter>
         bool peek_impl(Iter it, Iter end) const {
             if (it == end) return false;
-            std::string candidate(it, end);
+            std::string candidate(it, (it+pred_count));
             return std::regex_search(candidate, regex, std::regex_constants::match_continuous);
         }
 
@@ -693,7 +734,21 @@ namespace pkuyo::parsers {
                     results.push_back(*result);
                 }
                 return std::make_optional(std::move(results));
-            } else {
+            }
+            else if constexpr(std::is_same_v<child_return_type,nullptr_t>) {
+                while (token_it != token_end && child_parser.Peek(token_it, token_end)) {
+                    auto last_it = token_it;
+                    auto result = child_parser.Parse(token_it, token_end);
+                    if (!result) {
+                        this->error_handle_recovery(token_it, token_end);
+                        token_it = last_it;
+                        break;
+                    }
+
+                }
+                return std::make_optional(nullptr);
+            }
+            else {
                 std::vector<child_return_type> results;
                 while (token_it != token_end && child_parser.Peek(token_it, token_end)) {
                     auto last_it = token_it;
@@ -749,7 +804,26 @@ namespace pkuyo::parsers {
                     results.push_back(*result);
                 }
                 return std::make_optional(std::move(results));
-            } else {
+            }
+            else if constexpr ( std::is_same_v<child_return_type, nullptr_t> ) {
+                auto first_result = child_parser.Parse(token_it, token_end);
+                if (!first_result) {
+                    this->error_handle_recovery(token_it, token_end);
+                    return std::optional<nullptr_t>();
+                }
+
+                while (token_it != token_end && child_parser.Peek(token_it, token_end)) {
+                    auto last_it = token_it;
+                    auto result = child_parser.Parse(token_it, token_end);
+                    if (!result) {
+                        this->error_handle_recovery(token_it, token_end);
+                        token_it = last_it;
+                        break;
+                    }
+                }
+                return std::make_optional(nullptr);
+            }
+            else {
                 std::vector<child_return_type> results;
                 auto first_result = child_parser.Parse(token_it, token_end);
                 if (!first_result) {
@@ -916,7 +990,11 @@ namespace pkuyo::parsers {
         return parser_check<token_type, cmp_type>(std::forward<cmp_type>(cmp));
     }
 
-
+    template<typename token_type, typename cmp_type = token_type>
+    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    auto Until(cmp_type &&cmp) {
+        return parser_until<token_type, cmp_type>(std::forward<cmp_type>(cmp));
+    }
 
     template<typename token_type, typename seq_type>
     auto SeqCheck(seq_type &&cmp) {
@@ -942,15 +1020,15 @@ namespace pkuyo::parsers {
         return parser_str(str);
     }
 
-    template<typename token_type>
+    template<typename token_type,size_t pred_count = 1>
     auto Regex(const std::string & pattern) {
-        return parser_regex<token_type>(pattern);
+        return parser_regex<token_type,pred_count>(pattern);
     }
 
 
-    template<typename token_type = char>
+    template<typename token_type = char,size_t pred_count = 1>
     auto Regex(const char* pattern) {
-        return parser_regex<token_type>(std::string(pattern));
+        return parser_regex<token_type,pred_count>(std::string(pattern));
     }
 
     template<typename token_type, typename cmp_type = token_type,typename return_type = token_type>
@@ -959,6 +1037,7 @@ namespace pkuyo::parsers {
         auto constructor = [](const token_type& s) { return return_type(s); };
         return parser_value<token_type,return_type,cmp_type>(std::forward<cmp_type>(cmp_value),constructor);
     }
+
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
