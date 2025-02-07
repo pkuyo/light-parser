@@ -122,7 +122,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(this->Peek(token_it,token_end))
+            if(this->peek_impl(token_it,token_end))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
         }
@@ -147,7 +147,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(this->Peek(token_it,token_end))
+            if(this->peek_impl(token_it,token_end))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
         }
@@ -199,7 +199,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->Peek(token_it,token_end)){
+            if(!this->peek_impl(token_it,token_end)){
                 this->error_handle_recovery(token_it,token_end);
                 return std::optional<nullptr_t>();
             }
@@ -271,22 +271,31 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& it, Iter end) const {
-            auto last_it = it;
-            for (const auto& expected : expected_seq) {
-                if (it == end || *it != expected) {
-                    it = last_it; // restore_it
-                    this->error_handle_recovery(it, end);
-                    return std::optional<nullptr_t>();
-                }
-                ++it;
+            if(!this->peek_impl(it,end)) {
+                this->error_handle_recovery(it, end);
+                return std::optional<nullptr_t>();
             }
-            return std::make_optional(nullptr);
+            if constexpr (std::random_access_iterator<Iter>) {
+                it += expected_seq.size();
+                return std::make_optional(nullptr);
+            } else {
+                for (int i = 0; i< expected_seq.size(); i++,++it);
+                return std::make_optional(nullptr);
+            }
         }
 
         template <typename Iter>
-        bool peek_impl(Iter it, Iter end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), it,
-                              [](const auto& a, const auto& b) { return a == b; });
+        bool peek_impl(Iter token_it, Iter token_end) const {
+            if constexpr (std::contiguous_iterator<Iter> && std::is_trivial_v<token_type>) {
+                size_t len = expected_seq.size();
+                if (std::distance(token_it, token_end) < len)
+                    return false;
+                return memcmp(&*token_it, expected_seq.data(), len * sizeof(token_type)) == 0;
+            }
+            else {
+                return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
+                                  [](const auto &a, const auto &b) { return a == b; });
+            }
         }
 
 
@@ -298,8 +307,8 @@ namespace pkuyo::parsers {
     //  Uses a 'std::function<bool(const token_type &)>' to determine whether the token matches.
     //  If the match is successful, it returns a 'std::unique_ptr<result_type>' constructed with the token as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type>
-    class parser_ptr_with_func : public base_parser<token_type, parser_ptr_with_func<token_type,return_type>> {
+    template<typename token_type, typename return_type,typename FF>
+    class parser_ptr_with_func : public base_parser<token_type, parser_ptr_with_func<token_type,return_type,FF>> {
 
 
         explicit parser_ptr_with_func(std::function<bool(const token_type&)> _cmp_func)
@@ -307,7 +316,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->Peek(token_it,token_end)){
+            if(!this->peek_impl(token_it,token_end)){
                 this->error_handle_recovery(token_it,token_end);
                 return std::optional<std::unique_ptr<return_type>>();
             }
@@ -321,24 +330,24 @@ namespace pkuyo::parsers {
         }
 
     private:
-        std::function<bool(const token_type&)> cmp_func;
+        FF cmp_func;
     };
 
     // A parser that only matches the first token.
     //  Uses a 'std::function<bool(const token_type &)>' to determine whether the token matches.
     //  If the match is successful, it returns a 'result_type' constructed with the token as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type>
-    class parser_value_with_func : public base_parser<token_type, parser_value_with_func<token_type,return_type>> {
+    template<typename token_type, typename return_type, typename FF>
+    class parser_value_with_func : public base_parser<token_type, parser_value_with_func<token_type,return_type, FF>> {
 
     public:
 
-        explicit parser_value_with_func(std::function<bool(const token_type&)> _cmp_func)
+        explicit parser_value_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->Peek(token_it,token_end)){
+            if(!this->peek_impl(token_it,token_end)){
                 this->error_handle_recovery(token_it,token_end);
                 return std::optional<return_type>();
             }
@@ -352,15 +361,15 @@ namespace pkuyo::parsers {
         }
 
     private:
-        std::function<bool(const token_type&)> cmp_func;
+       FF cmp_func;
     };
 
 
     // A parser that matches tokens.
     //  If the match is successful, it returns a 'std::unique<result_type>' constructed with the sequence as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type, typename sequence_type>
-    class parser_multi_ptr : public base_parser<token_type, parser_multi_ptr<token_type,return_type,sequence_type>> {
+    template<typename token_type, typename return_type, typename sequence_type, typename FF>
+    class parser_multi_ptr : public base_parser<token_type, parser_multi_ptr<token_type,return_type,sequence_type, FF>> {
     public:
         parser_multi_ptr(sequence_type && _expected_seq, std::function<std::unique_ptr<return_type>(sequence_type)> _constructor)
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
@@ -368,35 +377,43 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& it, Iter end) const {
-            auto last_it = it;
-            for (const auto& expected : expected_seq) {
-                if (it == end || *it != expected) {
-                    it = last_it;
-                    this->error_handle_recovery(it, end);
-                    return std::optional<std::unique_ptr<return_type>>();
-                }
-                ++it;
+            if(!this->peek_impl(it,end)) {
+                this->error_handle_recovery(it, end);
+                return std::optional<std::unique_ptr<return_type>>();
             }
-            return constructor(expected_seq);
+            if constexpr (std::random_access_iterator<Iter>) {
+                it += expected_seq.size();
+                return constructor(expected_seq);
+            } else {
+                for (int i = 0; i< expected_seq.size(); i++,++it);
+                return constructor(expected_seq);
+            }
         }
 
         template <typename Iter>
         bool peek_impl(Iter token_it, Iter token_end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
-                              [](const auto& a, const auto& b) { return a == b; });
+            if constexpr (std::contiguous_iterator<Iter> && std::is_trivial_v<token_type>) {
+                size_t len = expected_seq.size();
+                if (std::distance(token_it, token_end) < len)
+                    return false;
+                return memcmp(&*token_it, expected_seq.data(), len * sizeof(token_type)) == 0;
+            }else {
+                return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
+                                  [](const auto &a, const auto &b) { return a == b; });
+            }
         }
 
 
     private:
         sequence_type expected_seq;
-        std::function<std::unique_ptr<return_type>(sequence_type)> constructor;
+        FF constructor;
     };
 
     // A parser that matches tokens.
     //  If the match is successful, it returns a 'result_type' constructed with the sequence as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type, typename sequence_type>
-    class parser_multi_value : public base_parser<token_type, parser_multi_value<token_type,return_type,sequence_type>> {
+    template<typename token_type, typename return_type, typename sequence_type, typename FF>
+    class parser_multi_value : public base_parser<token_type, parser_multi_value<token_type,return_type,sequence_type, FF>> {
 
         parser_multi_value(sequence_type && _expected_seq, std::function<return_type(sequence_type)> _constructor)
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
@@ -404,37 +421,44 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& it, Iter end) const {
-            auto last_it = it;
-            for (const auto& expected : expected_seq) {
-                if (it == end || *it != expected) {
-                    it = last_it;
-                    this->error_handle_recovery(it, end);
-                    return std::optional<return_type>();
-
-                }
-                ++it;
+            if(!this->peek_impl(it,end)) {
+                this->error_handle_recovery(it, end);
+                return std::optional<return_type>();
             }
-            return constructor(expected_seq);
+            if constexpr (std::random_access_iterator<Iter>) {
+                it += expected_seq.size();
+                return constructor(expected_seq);
+            } else {
+                for (int i = 0; i< expected_seq.size(); i++,++it);
+                return constructor(expected_seq);
+            }
         }
 
         template <typename Iter>
         bool peek_impl(Iter token_it, Iter token_end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
-                              [](const auto& a, const auto& b) { return a == b; });
+            if constexpr (std::contiguous_iterator<Iter> && std::is_trivial_v<token_type>) {
+                size_t len = expected_seq.size();
+                if (std::distance(token_it, token_end) < len)
+                    return false;
+                return memcmp(&*token_it, expected_seq.data(), len * sizeof(token_type)) == 0;
+            }else {
+                return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
+                                  [](const auto &a, const auto &b) { return a == b; });
+            }
         }
 
     private:
         sequence_type expected_seq;
-        std::function<return_type(sequence_type)> constructor;
+        FF constructor;
     };
 
     // A parser that only matches the first token.
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
     //  If the match is successful, it returns 'std::unique_ptr<return_type>';
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
-    template<typename token_type, typename return_type, typename cmp_type>
+    template<typename token_type, typename return_type, typename cmp_type, typename FF>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
-    class parser_ptr : public base_parser<token_type, parser_ptr<token_type,return_type,cmp_type>> {
+    class parser_ptr : public base_parser<token_type, parser_ptr<token_type,return_type,cmp_type,FF>> {
 
     public:
 
@@ -444,7 +468,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->Peek(token_it,token_end)){
+            if(!this->peek_impl(token_it,token_end)){
                 this->error_handle_recovery(token_it,token_end);
                 return std::optional<std::unique_ptr<return_type>>();
             }
@@ -460,7 +484,7 @@ namespace pkuyo::parsers {
         }
 
     private:
-        std::function<std::unique_ptr<return_type>(const token_type &)> constructor;
+        FF constructor;
         cmp_type cmp_value;
     };
 
@@ -468,9 +492,9 @@ namespace pkuyo::parsers {
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
     //  If the match is successful, it returns 'return_type‘;
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
-    template<typename token_type, typename return_type, typename cmp_type>
+    template<typename token_type, typename return_type, typename cmp_type,typename FF>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
-    class parser_value : public base_parser<token_type, parser_value<token_type,return_type,cmp_type>> {
+    class parser_value : public base_parser<token_type, parser_value<token_type,return_type,cmp_type,FF>> {
 
     public:
 
@@ -479,7 +503,7 @@ namespace pkuyo::parsers {
 
         template <typename Iter>
         auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->Peek(token_it,token_end)) {
+            if(!this->peek_impl(token_it,token_end)) {
                 this->error_handle_recovery(token_it,token_end);
                 return std::optional<return_type>();
             }
@@ -494,7 +518,7 @@ namespace pkuyo::parsers {
 
     private:
 
-        std::function<return_type(const token_type &)> constructor;
+        FF constructor;
         cmp_type cmp_value;
     };
 
@@ -559,8 +583,8 @@ namespace pkuyo::parsers {
         template <typename Iter>
         bool peek_impl(Iter it, Iter end) const {
             if (it == end) return false;
-            std::string candidate(it, (it+pred_count));
-            return std::regex_search(candidate, regex, std::regex_constants::match_continuous);
+            std::match_results<Iter> match;
+            return std::regex_search(it, std::next(it, pred_count), match, regex);
         }
 
 
@@ -674,7 +698,7 @@ namespace pkuyo::parsers {
             auto last_it = token_it;
 
             using result_t = filter_or_t<input_type_l,input_type_r>;
-            if(!this->Peek(token_it,token_end)) {
+            if(!this->peek_impl(token_it,token_end)) {
                 this->error_handle_recovery(token_it, token_end);
                 return std::optional<result_t>();
             }
@@ -1035,7 +1059,7 @@ namespace pkuyo::parsers {
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     auto SingleValue(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return return_type(s); };
-        return parser_value<token_type,return_type,cmp_type>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_value<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
@@ -1043,57 +1067,57 @@ namespace pkuyo::parsers {
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     auto SinglePtr(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return std::make_unique<return_type>(s); };
-        return parser_ptr<token_type,return_type,cmp_type>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_ptr<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     auto SingleValue(cmp_type && cmp_value, FF constructor) {
-        return parser_value<token_type,return_type,cmp_type>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_value<token_type,return_type,cmp_type, FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     auto SinglePtr(cmp_type && cmp_value,FF constructor) {
-        return parser_ptr<token_type,return_type,cmp_type>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_ptr<token_type,return_type,cmp_type,FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
     template<typename token_type,typename return_type = token_type, typename FF>
     requires is_convertible_to_function_v<FF,std::function<bool(const token_type &)>>
     auto SingleValue(FF compare_func) {
-        return parser_value_with_func<token_type, return_type>(compare_func);
+        return parser_value_with_func<token_type, return_type,FF>(compare_func);
     }
 
     template<typename token_type,typename return_type, typename FF>
     requires is_convertible_to_function_v<FF,std::function<bool(const token_type &)>>
     auto SinglePtr(FF compare_func) {
-        return parser_ptr_with_func<token_type, return_type>(compare_func);
+        return parser_ptr_with_func<token_type, return_type,FF>(compare_func);
     }
 
 
     template<typename token_type, typename cmp_type, typename return_type>
     auto SeqValue(const cmp_type & cmp_value) {
         auto constructor = [](const token_type& s) { return return_type(s); };
-        return parser_multi_value<token_type,return_type,cmp_type>(cmp_value,constructor);
+        return parser_multi_value<token_type,return_type,cmp_type, decltype(constructor)>(cmp_value,constructor);
     }
 
     template<typename token_type, typename cmp_type, typename return_type>
     auto SeqPtr(const cmp_type & cmp_value) {
         auto constructor = [](const token_type& s) { return std::make_unique<return_type>(s); };
-        return parser_multi_ptr<token_type,return_type,cmp_type>(cmp_value,constructor);
+        return parser_multi_ptr<token_type,return_type,cmp_type, decltype(constructor)>(cmp_value,constructor);
     }
 
 
     template<typename token_type, typename cmp_type, typename return_type,typename FF>
     auto SeqValue(const cmp_type & cmp_value, FF&& constructor) {
-        return parser_multi_value<token_type,return_type,cmp_type>(cmp_value,constructor);
+        return parser_multi_value<token_type,return_type,cmp_type,FF>(cmp_value,constructor);
     }
 
     template<typename token_type, typename cmp_type, typename return_type,typename FF>
     auto SeqPtr(const cmp_type & cmp_value,FF&& constructor) {
-        return parser_multi_ptr<token_type,return_type,cmp_type>(cmp_value,constructor);
+        return parser_multi_ptr<token_type,return_type,cmp_type,FF>(cmp_value,constructor);
     }
 
     template<typename child_type>
@@ -1138,14 +1162,14 @@ namespace pkuyo::parsers {
     template<typename child_type, typename FF>
     requires is_parser<child_type>
     auto Map(child_type && child, FF && mapper) {
-        return parser_map<std::remove_reference_t<child_type>, std::remove_reference_t<GetFunc<FF>>>
+        return parser_map<std::remove_reference_t<child_type>, std::remove_reference_t<FF>>
         (std::forward<child_type>(child),std::forward<FF>(mapper));
     }
 
     template<typename child_type, typename FF>
     requires is_parser<child_type>
     auto Where(child_type && child, FF && mapper) {
-        return parser_where<std::remove_reference_t<child_type>,std::remove_reference_t<GetFunc<FF>>>
+        return parser_where<std::remove_reference_t<child_type>,std::remove_reference_t<FF>>
         (std::forward<child_type>(child),std::forward<FF>(mapper));
     }
 

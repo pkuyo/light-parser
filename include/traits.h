@@ -66,27 +66,6 @@ namespace pkuyo::parsers {
     constexpr bool is_convertible_to_function_v =
             is_convertible_to_function<T, Signature>::value;
 
-    namespace details
-    {
-        template <typename Ret, typename... Args>
-        std::function<Ret(Args...)> getFunc(Ret (*)(Args...));
-
-
-        template <typename F, typename Ret, typename... Args>
-        std::function<Ret(Args...)> getFunc(Ret (F::*)(Args...));
-
-
-        template <typename F, typename Ret, typename... Args>
-        std::function<Ret(Args...)> getFunc(Ret (F::*)(Args...) const);
-
-        template <typename F>
-        decltype(getFunc(&std::remove_reference_t<F>::operator())) getFunc(F);
-
-
-    };
-
-    template <typename F>
-    using GetFunc = decltype(details::getFunc(std::declval<F>()));
 
     namespace details
     {
