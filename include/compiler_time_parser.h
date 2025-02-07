@@ -872,28 +872,24 @@ namespace pkuyo::parsers {
 
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type> &&
-            is_convertible_to_function_v<FF,std::function<return_type(const token_type &)>> && std::is_convertible_v<GetRet<FF>,return_type>
     constexpr auto SingleValue(cmp_type && cmp_value, FF constructor) {
         return parser_value<token_type,return_type,cmp_type, FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type> &&
-            is_convertible_to_function_v<FF,std::function<std::unique_ptr<return_type>(const token_type &)>> && std::is_convertible_v<std::unique_ptr<return_type>,GetRet<FF>>
     constexpr auto SinglePtr(cmp_type && cmp_value,FF constructor) {
         return parser_ptr<token_type,return_type,cmp_type,FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
     template<typename token_type,typename return_type = token_type, typename FF>
-    requires std::is_same_v<token_type,std::decay_t<GetArg<0,std::decay_t<FF>>>> && std::is_convertible_v<GetRet<std::decay_t<FF>>,bool>
+    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SingleValue(FF compare_func) {
         return parser_value_with_func<token_type, return_type,FF>(compare_func);
     }
 
     template<typename token_type,typename return_type, typename FF>
-    requires std::is_same_v<token_type,std::decay_t<GetArg<0,std::decay_t<FF>>>>  && std::is_convertible_v<GetRet<std::decay_t<FF>>,bool>
+    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SinglePtr(FF compare_func) {
         return parser_ptr_with_func<token_type, return_type,FF>(compare_func);
     }
