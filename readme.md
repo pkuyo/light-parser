@@ -36,9 +36,7 @@ Here's a simple example of how to use the library to parse a sequence of tokens:
 int main() {
     using namespace pkuyo::parsers;
 
-    // Create a parser container
-    
-    // Combine the parsers to match 'a' followed by 'b'
+    // Create the parsers to match 'a' followed by 'b'
     constexpr auto ab_parser = SingleValue<char>('a') >> 'b';
 
     // Parse the input "ab"
