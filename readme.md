@@ -107,7 +107,7 @@ auto result = parser.Parse(input);
 
 // Value transformation 
 constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
-    >>= [](char val) { return val -'0' * 2; };
+    >>= [](char val) { return (val -'0') * 2; };
 
 // Side-effect handling
 constexpr auto LogParser = Check<char>('[')
