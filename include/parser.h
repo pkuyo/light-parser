@@ -3,8 +3,8 @@
  * @file parser.h
  * @brief Main entry point for the lightweight parser library, integrating compile-time and runtime components.
  * @author pkuyo
- * @date 2025-02-07
- * @version 0.2.1
+ * @date 2025-02-08
+ * @version 0.2.2
  * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
  *
  * Key components:
@@ -21,6 +21,7 @@
 #include "traits.h"
 #include "error_handler.h"
 #include "runtime_parser.h"
+#include "token_stream.h"
 #include "compiler_time_parser.h"
 
 

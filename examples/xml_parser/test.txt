@@ -1,0 +1,6 @@
+<root>
+    <person id="123">
+        <name>John</name>
+        <age>30</age>
+    </person>
+</root>

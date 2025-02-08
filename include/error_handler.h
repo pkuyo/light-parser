@@ -24,48 +24,59 @@
 
 namespace pkuyo::parsers {
 
+
     // Standard exception class for error handling in the parser
     class parser_exception : public std::runtime_error {
 
     public:
 
-        parser_exception(const std::string_view error_part, const std::string_view & parser_name)
-                : std::runtime_error(std::format("parser exception in {}, at {}",parser_name,error_part)), error_part(error_part),  parser_name(parser_name)
+        parser_exception(const std::string_view error_part, const std::string_view & parser_name,
+                         const std::string_view & position, const std::string_view & stream_name)
+                : std::runtime_error(std::format("parser exception in token {}. At parser:{}, pos:{}. Stream: {}",
+                                                 parser_name,error_part,position,stream_name)),
+                error_part(error_part),
+                parser_name(parser_name),
+                position(position),
+                stream_name(stream_name)
         {}
 
         std::string_view error_part;
         std::string_view parser_name;
-
+        std::string_view position;
+        std::string_view stream_name;
     };
 
     // Used to reset the position point when the parser fails, in order to achieve error recovery functionality.
     template<typename token_type>
     class panic_mode_recovery {
     public:
-        using sync_pred_t =  std::function<bool(const token_type&)>;
+
+        typedef bool(* sync_pred_t)(const token_type&);
+        using sync_pred_func = std::function<std::remove_pointer_t<sync_pred_t>>;
+
 
         // Passes in a function for resetting the position point, with the function type being bool(const token_type&).
-        explicit panic_mode_recovery(sync_pred_t pred) : sync_check(pred) {}
+        explicit panic_mode_recovery(sync_pred_func pred) : sync_check(pred) {}
 
         // Checks from iterator `it` using `sync_check` for a synchronization point. Returns the sync point if found, otherwise `end`.
-        template<typename Iter>
-        Iter recover(Iter it, Iter end) const {
-            while(it != end) {
-                if(sync_check(*it)) return it;
-                ++it;
+        template<typename Stream>
+        void recover(Stream & stream) const {
+            while(!stream.Eof()) {
+                if(sync_check(stream.Peek()))
+                    break;
+                stream.Seek(1);
             }
-            return end;
         }
-        template<typename Iter>
-        Iter recover(Iter it, Iter end,bool(*func)(const token_type&)) const {
-            while(it != end) {
-                if(func(*it)) return it;
-                ++it;
+        template<typename Stream>
+        void recover(Stream & stream,bool(*func)(const token_type&)) const {
+            while(!stream.Eof()) {
+                if(func(stream.Peek()))
+                    break;
+                stream.Seek(1);
             }
-            return end;
         }
     private:
-        sync_pred_t sync_check;
+        sync_pred_func sync_check;
     };
 
     template<typename T>
@@ -81,6 +92,13 @@ namespace pkuyo::parsers {
         friend class _abstract_parser;
 
     public:
+        typedef void(*error_handler_t)( const _abstract_parser<token_type> & parser,
+                                        const std::optional<token_type> & token,
+                                        const std::string & token_value,
+                                        const std::string & token_pos,
+                                        const std::string_view & stream_name);
+
+    public:
         template<typename FF>
         static void DefaultRecovery(FF && _recovery) {
             parser_error_handler<token_type>::recovery = std::move(panic_mode_recovery<token_type>(_recovery));
@@ -89,31 +107,25 @@ namespace pkuyo::parsers {
         template<typename FF>
         static void DefaultOnError(FF && _func)  {
             parser_error_handler<token_type>::error_handler =
-                    std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>(std::forward<FF>(_func));
+                    std::function<std::remove_pointer_t<error_handler_t>>(std::forward<FF>(_func));
         }
     private:
         static panic_mode_recovery<token_type> recovery;
-        static std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)> error_handler;
+        static std::function<std::remove_pointer_t<error_handler_t>> error_handler;
     };
 
     template<typename token_type>
-    panic_mode_recovery<token_type> parser_error_handler<token_type>::recovery = panic_mode_recovery<token_type>([](auto && t) {return false;});
+    panic_mode_recovery<token_type> parser_error_handler<token_type>::recovery =
+            panic_mode_recovery<token_type>([](auto && t) {return false;});
 
     template<typename token_type>
-    std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>
-            parser_error_handler<token_type>::error_handler([](const _abstract_parser<token_type> & self,auto && token) {
-
-        if(token) {
-            if constexpr(is_formattable<token_type>::value) {
-                throw parser_exception(std::format("{}",*token), self.Name());
-            }
-            else {
-                throw parser_exception("TOKEN", self.Name());
-            }
-        }
-        else {
-            throw parser_exception("EOF", self.Name());
-        }
+    std::function<std::remove_pointer_t<typename parser_error_handler<token_type>::error_handler_t>>
+            parser_error_handler<token_type>::error_handler([](const _abstract_parser<token_type> & parser,
+                                                               const std::optional<token_type> & token,
+                                                               const std::string & token_value,
+                                                               const std::string & token_pos,
+                                                               const std::string_view & stream_name) {
+            throw parser_exception(parser.Name(),token_value,token_pos,stream_name);
     });
 
 

@@ -1,3 +1,4 @@
+
 # LightParser - A Lightweight C++ Parser-Combinator Library
 
 ![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)
@@ -13,13 +14,13 @@ LightParser is a lightweight parser combinator library based on C++20, designed 
 - **Compile-Time Construction**: Syntax parsers can be constructed at compile-time, enabling efficient and optimized parsing logic without runtime overhead.
 - **Customizable Parsers**: Create parsers that return custom types, including smart pointers and user-defined types.
 - **Panic Mode Recovery**: Provides a mechanism for recovering from parsing errors by synchronizing to a known point in the input.
-- **Header-Only Library with Zero Dependencies**: The library is entirely header-based, ensuring portability across platforms and build systems. 
+- **Header-Only Library with Zero Dependencies**: The library is entirely header-based, ensuring portability across platforms and build systems.
 
 ## Getting Started
 
 ### Installation
 
-To use this library, simply include the `parser.h` header file in your project. 
+To use this library, simply include the `parser.h` header file in your project.
 
 ```cpp
 #include "parser.h"
@@ -40,7 +41,7 @@ int main() {
     constexpr auto ab_parser = SingleValue<char>('a') >> 'b';
 
     // Parse the input "ab"
-    std::string input = "ab";
+    string_stream input("ab");
     auto result = ab_parser.Parse(input);
 
     // type of result is 'std::optional<std::tuple<char,char>>'
@@ -60,12 +61,13 @@ int main() {
 
 ```cpp
 // Custom error handling
-parser_error_handler<YourToken>::DefaultError([](auto & parser, auto && token) {
+parser_error_handler<YourToken>::DefaultOnError([](auto & parser, 
+        auto && token, auto & token_value, auto & token_pos, auto & stream_name) {
     if (token) {
-        std::cerr << "Unexpected token: " << *token
-                  << " at parser: " << parser.Name() << std::endl;
+        std::cerr << std::format("Unexpected {} in parser: {}, at: {}",
+                                 token_value, parser.Name(), token_pos) << std::endl;
     } else {
-        std::cerr << "Unexpected EOF at parser: " << parser.Name() << std::endl;
+        std::cerr << "Unexpected EOF in parser: " << parser.Name() << std::endl;
     }
 });
 
@@ -75,12 +77,9 @@ parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
 });
 ```
 
-
-
 #### Lazy Parsing
 
 ```cpp
-
 struct lazy_parser;
 
 constexpr auto parser = Lazy<char,lazy_parser>();
@@ -90,19 +89,17 @@ constexpr auto real_parser = SingleValue<char>('a') >> 'b';
 struct lazy_parser : public base_parser<char,lazy_parser> {
     
     //The return type MUST be the exact type name; auto cannot be used.
-    std::optional<char> parse_impl(auto& begin, auto end) const {
-        return real_parser.Parse(begin,end);
+    std::optional<char> parse_impl(auto& stream) const {
+        return real_parser.Parse(stream);
     }
-    bool peek_impl(auto begin, auto end) const {
-        return real_parser.Peek(begin,end);
+    bool peek_impl(auto& stream) const {
+        return real_parser.Peek(stream);
     }
 };
 
-std::string input  = "aab";
+string_stream input("aab");
 auto result = parser.Parse(input);
-
 ```
-
 
 #### Semantic Actions
 ```cpp
@@ -117,27 +114,45 @@ constexpr auto LogParser = Check<char>('[')
     <<= [](nullptr_t) { std::cout << "Start array" << std::endl; };
 ```
 
+#### Token Stream Implementations
+
+```cpp
+using namespace pkuyo::parsers;
+
+//token stream implementation for parsing strings.
+// (`wstring_stream` for `wchar_t`).
+string_stream input("Hello, World!");
+
+// A generic token stream implementation for parsing sequences stored in containers 
+// (e.g., `std::vector`).
+std::vector<int> tokens = {1, 2, 3, 4};
+container_stream<std::vector<int>> input(tokens);
+
+// A token stream implementation for parsing files. It supports buffering and position tracking.
+file_stream input("example.txt");
+```
+
+
+
 ### Examples
 For more complex usage scenarios, refer to the examples in the [examples](examples) directory.
 
 ## API Reference
 
-
 ### Global Method
 
-| Method              | Description                                         |
-|---------------------|-----------------------------------------------------|
-| `Regex()`           | Create a regex-matching parser   (only for runtime) |
-| `Check()`           | Create a parser only check single token             |
-| `SeqCheck()`        | Create a parser only check multi tokens             |
-| `Str()`             | Create a string-matching parser                     |
-| `SingleValue()`     | Create a value parser                               |
-| `SinglePtr()`       | Create a value parser (return unique_ptr<>)         |
-| `SeqValue()`        | Create a multi-value parser                         |
-| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>)   |
-| `DefaultError()`    | Sets a default error handler for all parsers        |
-| `DefaultRecovery()` | Sets a default panic mode recovery function         |
-
+| Method              | Description                                       |
+|---------------------|---------------------------------------------------|
+| `Check()`           | Create a parser only check single token           |
+| `SeqCheck()`        | Create a parser only check multi tokens           |
+| `Str()`             | Create a string-matching parser                   |
+| `Until()`           | Create a parser stop at certain token             |
+| `SingleValue()`     | Create a value parser                             |
+| `SinglePtr()`       | Create a value parser (return unique_ptr<>)       |
+| `SeqValue()`        | Create a multi-value parser                       |
+| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>) |
+| `DefaultOnError()`  | Sets a default error handler for all parsers      |
+| `DefaultRecovery()` | Sets a default panic mode recovery function       |
 
 ### base_parser
 base_parser class used for constructing parser combinators and actual expression parsing.
@@ -159,8 +174,6 @@ base_parser class used for constructing parser combinators and actual expression
 | `OnRecovery()`    | Sets a panic mode recovery function.                                                        |
 | `Name()`          | Sets an alias for parser.                                                                   |
 
-
-
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request if you have any improvements or bug fixes.
@@ -172,4 +185,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Author
 
 - **pkuyo** - [GitHub](https://github.com/pkuyo)
-

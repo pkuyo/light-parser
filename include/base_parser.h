@@ -37,14 +37,15 @@ namespace pkuyo::parsers {
         constexpr _abstract_parser() = default;
 
         // Handles exception recovery. Invoked on `Parse` errors and may throw `parser_exception`.
-        template<typename Iter>
-        void error_handle_recovery(Iter &token_it, Iter token_end) const {
-            auto last_it = token_it;
-            if (!recovery_func)     token_it = parser_error_handler<token_type>::recovery.recover(token_it,token_end);
-            else                    token_it = parser_error_handler<token_type>::recovery.recover(token_it,token_end,recovery_func);
+        template<typename Stream>
+        void error_handle_recovery(Stream & stream) const {
+            if (!recovery_func)     parser_error_handler<token_type>::recovery.recover(stream);
+            else                    parser_error_handler<token_type>::recovery.recover(stream,recovery_func);
 
-            if (!error_handler)     parser_error_handler<token_type>::error_handler(*this,last_it==token_end ? std::nullopt : std::make_optional(*last_it));
-            else                    error_handler(*this,last_it==token_end ? std::nullopt : std::make_optional(*last_it));
+            if (!error_handler)     parser_error_handler<token_type>::error_handler(*this,stream.Eof() ?
+            std::nullopt : std::make_optional(stream.Peek()),stream.Value(),stream.Pos(),stream.Name());
+            else                    error_handler(*this,stream.Eof() ? std::nullopt : std::make_optional(stream.Peek()),
+                                                  stream.Value(),stream.Pos(),stream.Name());
 
         }
 
@@ -52,13 +53,10 @@ namespace pkuyo::parsers {
 
         char parser_name[20]{};
 
-        template<typename parser_type,size_t size>
-        friend class named_parser;
-
     protected:
 
-        bool(*recovery_func)(const token_type&) = nullptr;
-        void(*error_handler)(const _abstract_parser<token_type> &,const std::optional<token_t> &) = nullptr;
+        panic_mode_recovery<token_type>::sync_pred_t recovery_func = nullptr;
+        parser_error_handler<token_type>::error_handler_t error_handler = nullptr;
 
 
     };
@@ -75,29 +73,24 @@ namespace pkuyo::parsers {
 
         // Sets the exception handler. Falls back to `parser_container`'s handler if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
-        constexpr derived_type& OnError( void(*error_handler)(const _abstract_parser<token_type> &,const std::optional<token_type> &))
+        constexpr derived_type& OnError(parser_error_handler<token_type>::error_handler_t  error_handler)
         {this->error_handler = error_handler; return static_cast<derived_type&>(*this);}
 
         // Sets for panic mode recovery. Falls back to `parser_container`'s recovery if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
-        constexpr derived_type& OnRecovery(bool(*recovery_func)(const token_type&))
+        constexpr derived_type& OnRecovery(panic_mode_recovery<token_type>::sync_pred_t recovery_func)
         { this->recovery_func = recovery_func; return static_cast<derived_type&>(*this);}
 
         // Predicts if this `parser` can correctly parse the input (single-character lookahead).
-        template <typename Iter>
-        bool Peek(Iter begin, Iter end) const {
-            return static_cast<const derived_type&>(*this).peek_impl(begin, end);
+        template <typename Stream>
+        auto Peek(Stream& stream) const {
+            return static_cast<const derived_type&>(*this).peek_impl(stream);
         }
         // Parses the input sequence from `token_it` to `token_end`. Returns `std::nullopt` only when parsing fails.
         // (May throw exceptions.)
-        template <typename Iter>
-        auto Parse(Iter& begin, Iter end) const {
-            return static_cast<const derived_type&>(*this).parse_impl(begin, end);
-        }
-        template <typename Container>
-        auto Parse(const Container& container) const {
-            auto it = container.begin();
-            return static_cast<const derived_type&>(*this).parse_impl(it, container.end());
+        template <typename Stream>
+        auto Parse(Stream& stream) const {
+            return static_cast<const derived_type&>(*this).parse_impl(stream);
         }
 
 

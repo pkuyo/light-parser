@@ -19,6 +19,7 @@
 
 #include <type_traits>
 #include <format>
+#include "token_stream.h"
 
 namespace pkuyo::parsers {
 
@@ -116,7 +117,9 @@ namespace pkuyo::parsers{
 
     template <typename parser_type>
     using parser_result_t = decltype(std::declval<std::decay_t<parser_type>>().Parse(
-            std::declval<typename std::vector<typename std::decay_t<parser_type>::token_t>>()))::value_type;
+            std::declval<std::add_lvalue_reference_t<
+                    container_stream<std::vector<typename std::decay_t<parser_type>::token_t>>
+                    >>()))::value_type;
 
 
     //parser_then

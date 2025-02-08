@@ -29,17 +29,17 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_not(child_type && _child_parser) : child_parser(std::forward<child_type>(_child_parser)) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(this->peek_impl(token_it,token_end))
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(this->peek_impl(stream))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
         }
     public:
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return !child_parser.peek_impl(token_it,token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !child_parser.peek_impl(stream);
         }
 
 
@@ -54,16 +54,16 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_pred(const child_type & _child_parser) : child_parser(_child_parser) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(this->peek_impl(token_it,token_end))
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(this->peek_impl(stream))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return child_parser.peek_impl(token_it,token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return child_parser.peek_impl(stream);
         }
 
 
@@ -77,17 +77,17 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_ignore(const child_type & _child_parser) : child_parser(_child_parser) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            auto re = child_parser.parse_impl(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            auto re = child_parser.parse_impl(stream);
             if(re)
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return child_parser.peek_impl(token_it,token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return child_parser.peek_impl(stream);
         }
 
 
@@ -106,20 +106,20 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_check(cmp_type && _cmp_value) : cmp_value(std::forward<cmp_type>(_cmp_value)) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->peek_impl(token_it,token_end)){
-                this->error_handle_recovery(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)){
+                this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
             }
-            token_it++;
+            stream.Get();
             return std::make_optional(nullptr);
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && (*token_it) == cmp_value;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && stream.Peek() == cmp_value;
         }
 
 
@@ -135,30 +135,29 @@ namespace pkuyo::parsers {
 
         constexpr parser_until(const cmp_type & _cmp) : cmp(_cmp) {}
 
-        auto parse_impl(auto& begin, auto end) const {
+        template<typename Stream>
+        auto parse_impl(Stream& stream) const {
             if constexpr(std::is_same_v<token_type,char> ||std::is_same_v<token_type,wchar_t>) {
-                if (!peek_impl(begin, end))
+                if (!peek_impl(stream))
                     return std::optional<std::basic_string<token_type>>();
                 std::basic_string<token_type> result;
-                while (begin != end && *begin != cmp) {
-                    result.push_back(*begin);
-                    begin++;
+                while (!stream.Eof() && stream.Peek() != cmp) {
+                    result.push_back(stream.Get());
                 }
                 return std::make_optional(std::move(result));
             }
             else {
-                if (!peek_impl(begin, end))
+                if (!peek_impl(stream))
                     return std::optional<std::vector<token_type>>();
                 std::vector<token_type> result;
-                while (begin != end && *begin != cmp) {
-                    result.push_back(*begin);
-                    begin++;
+                while (!stream.Eof() && stream.Peek() != cmp) {
+                    result.push_back(stream.Get());
                 }
                 return std::make_optional(std::move(result));
             }
         }
-        bool peek_impl(auto begin, auto end) const {
-            if(begin == end || *begin == cmp)
+        bool peek_impl(auto & stream) const {
+            if(stream.Eof() || stream.Peek() == cmp)
                 return false;
             return true;
         }
@@ -178,19 +177,19 @@ namespace pkuyo::parsers {
         constexpr explicit parser_ptr_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->peek_impl(token_it,token_end)){
-                this->error_handle_recovery(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)){
+                this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
             }
-            return std::make_optional(std::move(std::make_unique<return_type>(*(token_it++))));
+            return std::make_optional(std::move(std::make_unique<return_type>(stream.Get())));
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && cmp_func(*token_it);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && cmp_func(stream.Peek());
         }
 
     private:
@@ -209,19 +208,19 @@ namespace pkuyo::parsers {
         constexpr explicit parser_value_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->peek_impl(token_it,token_end)){
-                this->error_handle_recovery(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)){
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
-            return std::make_optional<return_type>(*(token_it++));
+            return std::make_optional<return_type>(stream.Get());
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && cmp_func(*token_it);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && cmp_func(stream.Peek());
         }
 
     private:
@@ -242,27 +241,22 @@ namespace pkuyo::parsers {
             std::copy_n(_cmp_value,size,cmp_value);
         }
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            auto last_it = token_it;
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
             for(int i = 0;i<real_size;i++) {
-                if(*token_it != cmp_value[i]) {
-                    this->error_handle_recovery(token_it,token_end);
-
-                    //Restores token_it.
-                    token_it = last_it;
+                if(stream.Peek(i) != cmp_value[i]) {
+                    this->error_handle_recovery(stream);
                     return std::optional<std::basic_string_view<token_type>>();
                 }
-                token_it++;
             }
-
+            stream.Seek(real_size);
             return std::make_optional(std::basic_string_view<token_type>(cmp_value));
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && (*token_it) == *cmp_value;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && stream.Peek() == *cmp_value;
         }
 
     private:
@@ -284,21 +278,21 @@ namespace pkuyo::parsers {
         constexpr parser_ptr(cmp_type && _cmp_value,FF constructor)
                 : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->peek_impl(token_it,token_end)){
-                this->error_handle_recovery(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)){
+                this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
             }
 
-            return std::make_optional(std::move((constructor(*(token_it++)))));
+            return std::make_optional(std::move((constructor(stream.Get()))));
 
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && (*token_it) == cmp_value;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && stream.Peek() == cmp_value;
         }
 
     private:
@@ -319,19 +313,19 @@ namespace pkuyo::parsers {
         constexpr parser_value(cmp_type && _cmp_value,FF constructor)
                 : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            if(!this->peek_impl(token_it,token_end)) {
-                this->error_handle_recovery(token_it,token_end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
-            return std::optional<return_type>(std::move(constructor(*(token_it++))));
+            return std::optional<return_type>(std::move(constructor(stream.Get())));
         }
     public:
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return token_end != token_it && (*token_it) == cmp_value;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return !stream.Eof() && stream.Peek() == cmp_value;
         }
 
     private:
@@ -354,30 +348,23 @@ namespace pkuyo::parsers {
         constexpr parser_then(const input_type_left &parser_left,const input_type_right & parser_right)
                 : children_parsers(std::make_pair(parser_left,parser_right)){}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
             using result_r = parser_result_t<input_type_right>;
             using result_l = parser_result_t<input_type_left>;
 
             using return_type = then_result_t<result_l,result_r>;
-            auto last_it = token_it;
-            auto left_re = children_parsers.first.parse_impl(token_it,token_end);
+            auto left_re = children_parsers.first.parse_impl(stream);
 
             // If the match fails, attempts to recover and restores the token index, then returns nullopt.
             if(left_re == std::nullopt) {
-                this->error_handle_recovery(token_it,token_end);
-
-                //Restores token_it.
-                token_it = last_it;
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
 
-            auto right_re = children_parsers.second.parse_impl(token_it,token_end);
+            auto right_re = children_parsers.second.parse_impl(stream);
             if(right_re == std::nullopt) {
-                this->error_handle_recovery(token_it,token_end);
-
-                //Restores token_it.
-                token_it = last_it;
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
             if constexpr (std::is_same_v<result_l,nullptr_t>) {
@@ -397,9 +384,9 @@ namespace pkuyo::parsers {
             }
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return children_parsers.first.peek_impl(token_it,token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return children_parsers.first.peek_impl(stream);
         }
 
     private:
@@ -419,29 +406,26 @@ namespace pkuyo::parsers {
 
         constexpr parser_or(const input_type_l &left,const input_type_r & right) : children_parsers(std::make_pair(left,right)){}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            auto last_it = token_it;
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
 
             using result_t = filter_or_t<input_type_l,input_type_r>;
-            if(!this->peek_impl(token_it,token_end)) {
-                this->error_handle_recovery(token_it, token_end);
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<result_t>();
             }
-            else if(children_parsers.first.peek_impl(token_it,token_end)) {
-                auto re = children_parsers.first.parse_impl(token_it,token_end);
+            else if(children_parsers.first.peek_impl(stream)) {
+                auto re = children_parsers.first.parse_impl(stream);
                 if(!re) {
-                    this->error_handle_recovery(token_it, token_end);
-                    token_it = last_it;
+                    this->error_handle_recovery(stream);
                     return std::optional<result_t>();
                 }
                 else return std::optional<result_t>(std::move(re.value()));
             }
             else {
-                auto re = children_parsers.second.parse_impl(token_it,token_end);
+                auto re = children_parsers.second.parse_impl(stream);
                 if(!re) {
-                    this->error_handle_recovery(token_it, token_end);
-                    token_it = last_it;
+                    this->error_handle_recovery(stream);
                     return std::optional<result_t>();
                 }
                 else return std::make_optional<result_t>(std::move(re.value()));
@@ -449,9 +433,9 @@ namespace pkuyo::parsers {
 
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return children_parsers.first.peek_impl(token_it,token_end) || children_parsers.second.peek_impl(token_it,token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return children_parsers.first.peek_impl(stream) || children_parsers.second.peek_impl(stream);
         }
 
     private:
@@ -468,17 +452,15 @@ namespace pkuyo::parsers {
     public:
         constexpr explicit parser_many(const child_type & child): child_parser(child) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            using child_return_type = decltype(child_parser.parse_impl(token_it,token_end))::value_type;
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            using child_return_type = decltype(child_parser.parse_impl(stream))::value_type;
             if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
                 std::basic_string<child_return_type> results;
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
                     results.push_back(*result);
@@ -486,12 +468,10 @@ namespace pkuyo::parsers {
                 return std::make_optional(std::move(results));
             }
             else if constexpr(std::is_same_v<child_return_type,nullptr_t>) {
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
 
@@ -500,12 +480,10 @@ namespace pkuyo::parsers {
             }
             else {
                 std::vector<child_return_type> results;
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
                     results.push_back(std::move(*result));
@@ -513,8 +491,8 @@ namespace pkuyo::parsers {
                 return std::make_optional(std::move(results));
             }
         }
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
+        template<typename Stream>
+        bool peek_impl(Stream &) const {
             return true;
         }
 
@@ -531,24 +509,22 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_more(const child_type & child): child_parser(child) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            using child_return_type = decltype(child_parser.parse_impl(token_it,token_end))::value_type;
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            using child_return_type = decltype(child_parser.parse_impl(stream))::value_type;
             if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
                 std::basic_string<child_return_type> results;
-                auto first_result = child_parser.parse_impl(token_it, token_end);
+                auto first_result = child_parser.parse_impl(stream);
                 if (!first_result) {
-                    this->error_handle_recovery(token_it, token_end);
+                    this->error_handle_recovery(stream);
                     return std::optional<std::basic_string<child_return_type>>();
                 }
                 results.push_back(*first_result);
 
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
                     results.push_back(*result);
@@ -556,18 +532,16 @@ namespace pkuyo::parsers {
                 return std::make_optional(std::move(results));
             }
             else if constexpr ( std::is_same_v<child_return_type, nullptr_t> ) {
-                auto first_result = child_parser.parse_impl(token_it, token_end);
+                auto first_result = child_parser.parse_impl(stream);
                 if (!first_result) {
-                    this->error_handle_recovery(token_it, token_end);
+                    this->error_handle_recovery(stream);
                     return std::optional<nullptr_t>();
                 }
 
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
                 }
@@ -575,19 +549,17 @@ namespace pkuyo::parsers {
             }
             else {
                 std::vector<child_return_type> results;
-                auto first_result = child_parser.parse_impl(token_it, token_end);
+                auto first_result = child_parser.parse_impl(stream);
                 if (!first_result) {
-                    this->error_handle_recovery(token_it, token_end);
+                    this->error_handle_recovery(stream);
                     return std::optional<std::vector<child_return_type>>();
                 }
                 results.push_back(std::move(*first_result));
 
-                while (token_it != token_end && child_parser.peek_impl(token_it, token_end)) {
-                    auto last_it = token_it;
-                    auto result = child_parser.parse_impl(token_it, token_end);
+                while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                    auto result = child_parser.parse_impl(stream);
                     if (!result) {
-                        this->error_handle_recovery(token_it, token_end);
-                        token_it = last_it;
+                        this->error_handle_recovery(stream);
                         break;
                     }
                     results.push_back(std::move(*result));
@@ -596,9 +568,9 @@ namespace pkuyo::parsers {
             }
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter it, Iter end) const {
-            return child_parser.peek_impl(it, end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return child_parser.peek_impl(stream);
         }
     private:
         child_type child_parser;
@@ -612,14 +584,14 @@ namespace pkuyo::parsers {
     public:
 
         constexpr explicit parser_optional(const child_type & child): child_parser(child) {}
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
-            using return_type = decltype(child_parser.parse_impl(token_it,token_end))::value_type;
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            using return_type = decltype(child_parser.parse_impl(stream))::value_type;
             std::optional<return_type> result(std::nullopt);
-            if(child_parser.peek_impl(token_it,token_end)) {
-                auto re = child_parser.parse_impl(token_it, token_end);
+            if(child_parser.peek_impl(stream)) {
+                auto re = child_parser.parse_impl(stream);
                 if (re == std::nullopt) {
-                    this->error_handle_recovery(token_it, token_end);
+                    this->error_handle_recovery(stream);
                     return std::optional<std::optional<return_type>>();
                 }
                 result = std::move(re.value());
@@ -628,8 +600,8 @@ namespace pkuyo::parsers {
             return std::make_optional(std::move(result));
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter it, Iter end) const {
+        template<typename Stream>
+        bool peek_impl(Stream &) const {
             return true;
         }
 
@@ -644,14 +616,14 @@ namespace pkuyo::parsers {
     class parser_lazy : public base_parser<token_type,parser_lazy<token_type,real_type>> {
     public:
 
-        template <typename Iter>
-        bool peek_impl(Iter begin, Iter end) const {
-            return factory().peek_impl(begin, end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return factory().peek_impl(stream);
         }
 
-        template <typename Iter>
-        auto parse_impl(Iter& begin, Iter end) const {
-            return factory().parse_impl(begin, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            return factory().parse_impl(stream);
         }
     private:
        static real_type& factory() {
@@ -673,22 +645,22 @@ namespace pkuyo::parsers {
         constexpr parser_map(const child_type & source, mapper_t mapper)
                 : source(source), mapper(mapper) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
             using SourceType = parser_result_t<child_type>;
             using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>()));
 
-            auto source_result = source.parse_impl(token_it, token_end);
+            auto source_result = source.parse_impl(stream);
             if (source_result == std::nullopt) {
-                this->error_handle_recovery(token_it,token_end);
+                this->error_handle_recovery(stream);
                 return std::optional<TargetType>();
             }
             return std::make_optional(std::move(mapper(std::move(source_result.value()))));
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return source.peek_impl(token_it, token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return source.peek_impl(stream);
         }
 
 
@@ -706,20 +678,20 @@ namespace pkuyo::parsers {
         constexpr parser_where(const child_type &  parser, Predicate pred)
                 : child_parser(parser), predicate(pred) {}
 
-        template <typename Iter>
-        auto parse_impl(Iter& token_it, Iter token_end) const {
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
             using ReturnType = parser_result_t<child_type>;
 
-            auto result = child_parser.parse_impl(token_it, token_end);
+            auto result = child_parser.parse_impl(stream);
             if(!result || !predicate(*result)) {
                 return std::optional<ReturnType>();
             }
             return result;
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return child_parser.peek_impl(token_it, token_end);
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return child_parser.peek_impl(stream);
         }
     private:
         child_type child_parser;
@@ -733,27 +705,23 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it +=real_size;
-                return std::make_optional(nullptr);
-            } else {
-                for (int i = 0; i< real_size; i++,++it);
-                return std::make_optional(nullptr);
-            }
+            stream.Seek(real_size);
+            return std::make_optional(nullptr);
         }
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            if(std::distance(token_it,token_end) < real_size)
-                return false;
-            auto re = std::equal(token_it,token_it+real_size,cmp,
-                                 [](const auto &a, const auto &b) { return a == b; });
-            return re;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            for(int i = 0; i< real_size;i++) {
+                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
         static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
 
@@ -767,27 +735,23 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it += real_size;
-                return std::make_optional(constructor(cmp));
-            } else {
-                for (int i = 0; i< real_size; i++,++it);
-                return std::make_optional(constructor(cmp));
-            }
+            stream.Seek(real_size);
+            return std::make_optional(constructor(cmp));
         }
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            if(std::distance(token_it,token_end) < real_size)
-                return false;
-            auto re = std::equal(token_it,token_it+real_size,cmp,
-                                 [](const auto &a, const auto &b) { return a == b; });
-            return re;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            for(int i = 0; i< real_size;i++) {
+                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         buff_type cmp[buff_size]{};
@@ -804,27 +768,24 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it += real_size;
-                return std::make_optional(constructor(cmp));
-            } else {
-                for (int i = 0; i< real_size; i++,++it);
-                return std::make_optional(constructor(cmp));
-            }
+            stream.Seek(real_size);
+            return std::make_optional(constructor(cmp));
+
         }
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            if(std::distance(token_it,token_end) < real_size)
-                return false;
-            auto re = std::equal(token_it,token_it+real_size,cmp,
-                                 [](const auto &a, const auto &b) { return a == b; });
-            return re;
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            for(int i = 0; i< real_size;i++) {
+                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
         buff_type cmp[buff_size]{};
 

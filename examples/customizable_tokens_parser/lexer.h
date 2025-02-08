@@ -28,6 +28,10 @@ struct Token {
     TokenType type;
     std::string value;
 
+    explicit operator std::string() const {
+        return value;
+    }
+
     friend bool operator==(const Token &left, TokenType right) {
         return left.type == right;
     }
@@ -45,17 +49,7 @@ struct Token {
     }
 };
 
-template<>
-class std::formatter<Token> {
-public:
-    constexpr auto parse(auto &context) {
-        return context.begin();
-    }
-    constexpr auto format(const Token &v, auto &context) const
-    {
-        return std::format_to(context.out(), "{}", v.value);
-    }
-};
+
 
 
 // simple lexer

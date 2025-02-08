@@ -33,25 +33,25 @@ namespace pkuyo::parsers {
         parser_multi_check(const sequence_type & _expected_seq) : expected_seq(_expected_seq) {}
 
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it += expected_seq.size();
-                return std::make_optional(nullptr);
-            } else {
-                for (int i = 0; i< expected_seq.size(); i++,++it);
-                return std::make_optional(nullptr);
-            }
+            stream.Seek(expected_seq.size());
+            return std::make_optional(nullptr);
         }
 
-        template <typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
-                              [](const auto &a, const auto &b) { return a == b; });
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            int index = 0;
+            for(const auto & it : expected_seq) {
+                if(stream.Eof(index) || stream.Peek(index) != it)
+                    return false;
+                index++;
+            }
+            return true;
 
         }
 
@@ -64,53 +64,53 @@ namespace pkuyo::parsers {
     // A parser class that uses regular expressions for comparison.
     //This class is primarily used to parse and compare input strings using regular expressions.
     // During prediction, the length of the input string is controlled by the `pred_count` parameter, which defaults to 1.
-    template<typename token_type,size_t pred_count>
-    class parser_regex : public base_parser<token_type, parser_regex<token_type,pred_count>> {
-
-    public:
-
-        explicit parser_regex(const std::string _pattern)
-                : pattern(_pattern),
-                  regex(_pattern, std::regex_constants::ECMAScript | std::regex_constants::optimize)
-        {
-            // Compile the regular expression, throw an exception if it fails
-            if (!regex.flags()) {
-                throw std::runtime_error("Invalid regex pattern: " + pattern);
-            }
-        }
-
-        template <typename Iter>
-        bool peek_impl(Iter it, Iter end) const {
-            if (it == end) return false;
-            std::match_results<Iter> match;
-            return std::regex_search(it, std::next(it, pred_count), match, regex);
-        }
-
-
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-
-            auto start = it;
-            std::string candidate(start, end); // Create a string of the remaining input
-            std::smatch match;
-
-            // Perform the regex match (must match continuously from the beginning)
-            if (std::regex_search(candidate, match, regex,
-                                  std::regex_constants::match_continuous))
-            {
-                size_t length = match.length(); // Get the length of the match
-                std::advance(it, length);       // Move the iterator forward
-                return std::make_optional(std::string(start, it));  // Return the matched string
-            } else {
-                this->error_handle_recovery(it, end);
-                return std::optional<std::string>();
-            }
-        }
-
-    private:
-        std::string pattern;
-        std::regex regex;
-    };
+//    template<typename token_type,size_t pred_count>
+//    class parser_regex : public base_parser<token_type, parser_regex<token_type,pred_count>> {
+//
+//    public:
+//
+//        explicit parser_regex(const std::string _pattern)
+//                : pattern(_pattern),
+//                  regex(_pattern, std::regex_constants::ECMAScript | std::regex_constants::optimize)
+//        {
+//            // Compile the regular expression, throw an exception if it fails
+//            if (!regex.flags()) {
+//                throw std::runtime_error("Invalid regex pattern: " + pattern);
+//            }
+//        }
+//
+//        template<typename Stream>
+//        bool peek_impl(Iter it, Iter end) const {
+//            if (it == end) return false;
+//            std::match_results<Iter> match;
+//            return std::regex_search(it, std::next(it, pred_count), match, regex);
+//        }
+//
+//
+//        template<typename Stream>
+//        auto parse_impl(Stream & stream) const {
+//
+//            auto start = it;
+//            std::string candidate(start, end); // Create a string of the remaining input
+//            std::smatch match;
+//
+//            // Perform the regex match (must match continuously from the beginning)
+//            if (std::regex_search(candidate, match, regex,
+//                                  std::regex_constants::match_continuous))
+//            {
+//                size_t length = match.length(); // Get the length of the match
+//                std::advance(it, length);       // Move the iterator forward
+//                return std::make_optional(std::string(start, it));  // Return the matched string
+//            } else {
+//                this->error_handle_recovery(stream);
+//                return std::optional<std::string>();
+//            }
+//        }
+//
+//    private:
+//        std::string pattern;
+//        std::regex regex;
+//    };
     // A parser that matches tokens.
     //  If the match is successful, it returns a 'std::unique<result_type>' constructed with the sequence as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
@@ -121,25 +121,27 @@ namespace pkuyo::parsers {
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
 
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it += expected_seq.size();
-                return constructor(expected_seq);
-            } else {
-                for (int i = 0; i< expected_seq.size(); i++,++it);
-                return constructor(expected_seq);
-            }
+            stream.Seek(expected_seq.size());
+            return constructor(expected_seq);
+
         }
 
-        template<typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
-                              [](const auto &a, const auto &b) { return a == b; });
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            int index = 0;
+            for(const auto & it : expected_seq) {
+                if(stream.Eof(index) || stream.Peek(index) != it)
+                    return false;
+                index++;
+
+            }
+            return true;
         }
 
 
@@ -158,26 +160,25 @@ namespace pkuyo::parsers {
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
 
 
-        template <typename Iter>
-        auto parse_impl(Iter& it, Iter end) const {
-            if(!this->peek_impl(it,end)) {
-                this->error_handle_recovery(it, end);
+        template<typename Stream>
+        auto parse_impl(Stream & stream) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
-            if constexpr (std::random_access_iterator<Iter>) {
-                it += expected_seq.size();
-                return constructor(expected_seq);
-            } else {
-                for (int i = 0; i< expected_seq.size(); i++,++it);
-                return constructor(expected_seq);
-            }
+            stream.Seek(expected_seq.size());
+            return constructor(expected_seq);
         }
 
-        template<typename Iter>
-        bool peek_impl(Iter token_it, Iter token_end) const {
-            return std::equal(expected_seq.begin(), expected_seq.end(), token_it,
-                              [](const auto &a, const auto &b) { return a == b; });
-
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            int index = 0;
+            for(const auto & it : expected_seq) {
+                if(stream.Eof(index) || stream.Peek(index) != it)
+                    return false;
+                index++;
+            }
+            return true;
         }
 
     private:
@@ -209,18 +210,18 @@ namespace pkuyo::parsers {
 //    auto SeqCheck(const wchar_t *str) {
 //        return SeqCheck<wchar_t>(std::wstring_view(str));
 //    }
-
-
-    template<typename token_type,size_t pred_count = 1>
-    auto Regex(const std::string & pattern) {
-        return parser_regex<token_type,pred_count>(pattern);
-    }
-
-
-    template<typename token_type = char,size_t pred_count = 1>
-    auto Regex(const char* pattern) {
-        return parser_regex<token_type,pred_count>(std::string(pattern));
-    }
+//
+//
+//    template<typename token_type,size_t pred_count = 1>
+//    auto Regex(const std::string & pattern) {
+//        return parser_regex<token_type,pred_count>(pattern);
+//    }
+//
+//
+//    template<typename token_type = char,size_t pred_count = 1>
+//    auto Regex(const char* pattern) {
+//        return parser_regex<token_type,pred_count>(std::string(pattern));
+//    }
 
     template<typename token_type, typename cmp_type, typename return_type>
     auto SeqValue(const cmp_type & cmp_value) {

@@ -81,11 +81,11 @@ namespace json {
 
 
     struct lazy_value : public base_parser<char,lazy_value> {
-        std::optional<unique_ptr<AstNode>> parse_impl(auto& begin, auto end) const {
-            return value.Parse(begin,end);
+        std::optional<unique_ptr<AstNode>> parse_impl(auto& stream) const {
+            return value.Parse(stream);
         }
-        bool peek_impl(auto begin, auto end) const {
-            return value.Peek(begin,end);
+        bool peek_impl(auto & stream) const {
+            return value.Peek(stream);
         }
     };
     auto & parser = value;
@@ -108,9 +108,9 @@ int main() {
     )";
 
     auto lexer = JSONLexer(input);
-    auto tokens = lexer.tokenize();
+    pkuyo::parsers::container_stream<std::vector<Token>> token_stream(lexer.tokenize());
 
-    auto result = json::parser.Parse(tokens);
+    auto result = json::parser.Parse(token_stream);
 
     Visitor visitor{};
 

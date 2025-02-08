@@ -13,6 +13,7 @@ add_executable(light_parser main.cpp
         include/base_parser.h
         include/compiler_time_parser.h
         include/runtime_parser.h
+        include/token_stream.h
 )
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 

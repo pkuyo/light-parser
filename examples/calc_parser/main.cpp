@@ -58,16 +58,14 @@ namespace num_parser {
             else result -= num;
         }
         return result;
-    }).Name("expression").OnError([](const _abstract_parser<char> &,const std::optional<char> &) {
-        return;
-    });
+    }).Name("expression");
 
     struct LazyExpr : public base_parser<char,LazyExpr> {
-         std::optional<double> parse_impl(auto& begin, auto end) const {
-            return expression.Parse(begin,end);
+         std::optional<double> parse_impl(auto& stream) const {
+            return expression.Parse(stream);
         }
-        bool peek_impl(auto begin, auto end) const {
-            return expression.Peek(begin,end);
+        bool peek_impl(auto& stream) const {
+            return expression.Peek(stream);
         }
     };
 }
@@ -76,7 +74,7 @@ int main() {
 
 
 
-    std::string input = "3.14+5*(2-4)";
+    pkuyo::parsers::string_stream input("3.14+5*(2-4)");
 
     auto result = num_parser::expression.Parse(input);
 

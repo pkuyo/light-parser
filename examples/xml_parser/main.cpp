@@ -10,7 +10,6 @@
 #include <chrono>
 #include "xml_def.h"
 
-using TokenType = char;
 
 
 
@@ -49,25 +48,23 @@ namespace xml {
     using namespace std;
 
 
-    struct open_tag_check : public base_parser<TokenType,open_tag_check> {
-        optional<nullptr_t> parse_impl(auto& begin, auto end) const {
-            if(peek_impl(begin,end)) {
-                begin++;
+    struct open_tag_check : public base_parser<char,open_tag_check> {
+        optional<nullptr_t> parse_impl(auto& stream) const {
+            if(peek_impl(stream)) {
+                stream.Seek(1);
                 return nullptr;
             }
             return std::nullopt;
         }
-        bool peek_impl(auto begin, auto end) const {
-            if(begin == end || *begin != '<')
-                return false;
-            if(++begin == end || *begin == '/')
+        bool peek_impl(auto& stream) const {
+            if(stream.Eof(1) || stream.Peek()  != '<' ||  stream.Peek(1) == '/' )
                 return false;
             return true;
         }
     };
 
 // space
-    constexpr auto space = -SingleValue<TokenType>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
+    constexpr auto space = -SingleValue<char>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
     constexpr auto skip_space_must = +space;
     constexpr auto skip_space = *space;
 
@@ -82,7 +79,7 @@ namespace xml {
 
     constexpr auto text = Until<char>('<');
 
-    constexpr auto node = text | Lazy<TokenType,lazy_element>();
+    constexpr auto node = text | Lazy<char,lazy_element>();
 
     constexpr auto content = skip_space >> *node >> skip_space;
 
@@ -99,12 +96,12 @@ namespace xml {
                 return xml::Element{std::move(tag), std::move(attrs),std::move(children)};
             };
 
-    struct lazy_element : public base_parser<TokenType,lazy_element> {
-        optional<Element> parse_impl(auto& begin, auto end) const {
-            return element.Parse(begin,end);
+    struct lazy_element : public base_parser<char,lazy_element> {
+        optional<Element> parse_impl(auto & stream) const {
+            return element.Parse(stream);
         }
-        bool peek_impl(auto begin, auto end) const {
-            return element.Peek(begin,end);
+        bool peek_impl(auto & stream) const {
+            return element.Peek(stream);
         }
     };
 
@@ -113,25 +110,9 @@ namespace xml {
 
 int main() {
 
-    std::string xml = R"(
-    <root>
-        <person id="123">
-            <name>John</name>
-            <age>30</age>
-        </person>
-    </root>)";
 
-    //test
-    {
-        using namespace std::chrono;
-        auto start = high_resolution_clock::now();
+    pkuyo::parsers::file_stream xml("test.txt");
 
-        for (int i = 0; i < 10000; i++) {
-            xml::document.Parse(xml);
-        }
-        auto end = high_resolution_clock::now();
-        std::cout << (end - start).count() / 1000000.f << std::endl;
-    }
 
     try {
         auto result = xml::document.Parse(xml);
@@ -142,10 +123,10 @@ int main() {
             std::cout << "Parse failed\n";
         }
     }
-    catch(const pkuyo::parsers::parser_exception & e) {
-        std::cout << "Parse failed\n";
-        std::cerr << e.what() << std::endl;
+    catch(pkuyo::parsers::parser_exception& e) {
+        std:: cout << e.what() << std::endl;
     }
+
 
 
     return 0;
