@@ -654,12 +654,11 @@ namespace pkuyo::parsers {
             return factory().parse_impl(begin, end);
         }
     private:
-        real_type& factory() const{
-            static std::unique_ptr<real_type> real;
-            if(!real)
-                real = std::move(std::make_unique<real_type>());
-            return *real;
+       static real_type& factory() {
+            static real_type real;
+            return real;
         }
+
     };
 
 

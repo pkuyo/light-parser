@@ -109,8 +109,8 @@ auto result = parser.Parse(input);
 // The parameter types of the lambda expression MUST be the exact type names; auto cannot be used.
 
 // Value transformation 
-constexpr auto IntParser = SingleValue<char,int>([](char c){ return isdigit(c); })
-    >>= [](int val) { return val * 2; };
+constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
+    >>= [](char val) { return val -'0' * 2; };
 
 // Side-effect handling
 constexpr auto LogParser = Check<char>('[')
@@ -137,7 +137,6 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 | `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>)   |
 | `DefaultError()`    | Sets a default error handler for all parsers        |
 | `DefaultRecovery()` | Sets a default panic mode recovery function         |
-| `Name()`            | Sets an alias for parser.                           |
 
 
 ### base_parser
@@ -156,6 +155,9 @@ base_parser class used for constructing parser combinators and actual expression
 | `+`               | Create a one-or-more repetition parser   (return `vector<t>` or `basic_string<t>`)          |
 | `-`               | Create a parser ignore original result and return `nullptr`                                 |
 | `&&`              | Creates a parser_where to filter results.                                                   |
+| `OnError()`       | Sets a error handler for parsers                                                            |               
+| `OnRecovery()`    | Sets a panic mode recovery function.                                                        |
+| `Name()`          | Sets an alias for parser.                                                                   |
 
 
 

@@ -40,20 +40,25 @@ namespace pkuyo::parsers {
         template<typename Iter>
         void error_handle_recovery(Iter &token_it, Iter token_end) const {
             auto last_it = token_it;
-            token_it = parser_error_handler<token_type>::recovery.recover(token_it,token_end);
-            parser_error_handler<token_type>::error_handler(*this,last_it==token_end ? std::nullopt : std::make_optional(*last_it));
+            if (!recovery_func)     token_it = parser_error_handler<token_type>::recovery.recover(token_it,token_end);
+            else                    token_it = parser_error_handler<token_type>::recovery.recover(token_it,token_end,recovery_func);
+
+            if (!error_handler)     parser_error_handler<token_type>::error_handler(*this,last_it==token_end ? std::nullopt : std::make_optional(*last_it));
+            else                    error_handler(*this,last_it==token_end ? std::nullopt : std::make_optional(*last_it));
 
         }
+
+
 
         char parser_name[20]{};
 
         template<typename parser_type,size_t size>
         friend class named_parser;
 
-        //TODO: New Exception Handler
-//    private:
-//        std::optional<panic_mode_recovery<token_type>> recovery;
-//        std::optional<std::function<void(const _abstract_parser<token_type> &,const std::optional<token_t> &)>> error_handler;
+    protected:
+
+        bool(*recovery_func)(const token_type&) = nullptr;
+        void(*error_handler)(const _abstract_parser<token_type> &,const std::optional<token_t> &) = nullptr;
 
 
     };
@@ -65,17 +70,18 @@ namespace pkuyo::parsers {
     public:
         // Sets an alias for `parser`.
         // (Usually called automatically in `parser_wrapper`.)
-        derived_type& Name(const std::string_view & name) { std::copy_n(name.data(),name.size(),this->parser_name); return static_cast<derived_type&>(*this); }
+        constexpr derived_type& Name(const std::string_view & name)
+        { std::copy_n(name.data(),name.size(),this->parser_name); return static_cast<derived_type&>(*this); }
 
         // Sets the exception handler. Falls back to `parser_container`'s handler if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
-        template<typename FF>
-        derived_type& OnError(FF && func) {this->error_handler = std::function<void(const _abstract_parser<token_type> &,const std::optional<token_type> &)>(func); return static_cast<derived_type&>(*this);}
+        constexpr derived_type& OnError( void(*error_handler)(const _abstract_parser<token_type> &,const std::optional<token_type> &))
+        {this->error_handler = error_handler; return static_cast<derived_type&>(*this);}
 
         // Sets for panic mode recovery. Falls back to `parser_container`'s recovery if none is provided.
         // (Usually called automatically in `parser_wrapper`.)
-        template<typename FF>
-        derived_type& Recovery(FF && _recovery) { this->recovery = panic_mode_recovery<token_type>(_recovery); return static_cast<derived_type&>(*this);}
+        constexpr derived_type& OnRecovery(bool(*recovery_func)(const token_type&))
+        { this->recovery_func = recovery_func; return static_cast<derived_type&>(*this);}
 
         // Predicts if this `parser` can correctly parse the input (single-character lookahead).
         template <typename Iter>
@@ -97,37 +103,11 @@ namespace pkuyo::parsers {
 
     protected:
         constexpr base_parser() = default;
-
-
     };
 
     template <typename T>
     concept is_parser = std::is_base_of_v<_abstract_parser<typename std::remove_reference_t<T>::token_t>,std::remove_reference_t<T>>;
 
-    template<typename parser_type,size_t size>
-
-    class named_parser : public base_parser<typename parser_type::token_t,named_parser<parser_type,size>> {
-    public:
-        constexpr named_parser(const char (&name)[size],const parser_type & _parser) : parser(_parser) {
-            std::copy_n(name,size,parser.parser_name);
-        }
-
-        auto parse_impl(auto &begin, auto end) const {
-            return parser.parse_impl(begin, end);
-        }
-
-        bool peek_impl(auto begin, auto end) const {
-            return parser.peek_impl(begin, end);
-        }
-        parser_type parser;
-    };
-
-    // set alias for parser
-    template<typename parser_type, size_t size>
-    requires is_parser<parser_type> && (size < 20)
-    constexpr auto Name(parser_type && parser,const char (&name)[size]) {
-        return named_parser<parser_type,size>(name,parser);
-    }
 
 }
 #endif //LIGHT_PARSER_BASE_PARSER_H

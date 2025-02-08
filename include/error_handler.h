@@ -56,7 +56,14 @@ namespace pkuyo::parsers {
             }
             return end;
         }
-
+        template<typename Iter>
+        Iter recover(Iter it, Iter end,bool(*func)(const token_type&)) const {
+            while(it != end) {
+                if(func(*it)) return it;
+                ++it;
+            }
+            return end;
+        }
     private:
         sync_pred_t sync_check;
     };
