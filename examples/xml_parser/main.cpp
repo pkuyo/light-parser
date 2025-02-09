@@ -63,7 +63,6 @@ namespace xml {
         }
     };
 
-// space
     constexpr auto space = -SingleValue<char>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
     constexpr auto skip_space_must = +space;
     constexpr auto skip_space = *space;

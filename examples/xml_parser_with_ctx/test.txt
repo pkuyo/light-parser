@@ -1,7 +1,0 @@
-<root>
-    <person id="123">
-        <empty/>
-        <name>John</name>
-        <age>30</age>
-    </person>
-</root>
