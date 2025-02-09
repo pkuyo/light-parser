@@ -59,8 +59,8 @@ int main() {
 
 #### Error Handling
 
+Custom error handling
 ```cpp
-// Custom error handling
 parser_error_handler<YourToken>::DefaultOnError([](auto & parser, 
         auto && token, auto & token_value, auto & token_pos, auto & stream_name) {
     if (token) {
@@ -75,11 +75,25 @@ parser_error_handler<YourToken>::DefaultOnError([](auto & parser,
 parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
     return c == ';';  // Recover parsing at semicolons
 });
+
+//Set error handling for a specific parser.
+auto parser = (....).OnError(....).OnRecovery(...);
+```
+Try-Catch parser
+```cpp
+auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"));
+string_stream tokens("com-Recovery");
+
+//If matching fails, it attempts to re-match using recovery.
+auto result = parser.Parse(tokens);
+// *result == "com-Recovery"
 ```
 
 #### Lazy Parsing
 
 ```cpp
+using namespace pkuyo::parsers;
+
 struct lazy_parser;
 
 constexpr auto parser = Lazy<char,lazy_parser>();
@@ -103,16 +117,43 @@ auto result = parser.Parse(input);
 
 #### Semantic Actions
 ```cpp
+using namespace pkuyo::parsers;
+
 // The parameter types of the lambda expression MUST be the exact type names; auto cannot be used.
 
 // Value transformation 
 constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
-    >>= [](char val) { return (val -'0') * 2; };
+    >>= [](char val /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
+            { return (val -'0') * 2; };
 
 // Side-effect handling
 constexpr auto LogParser = Check<char>('[')
-    <<= [](nullptr_t) { std::cout << "Start array" << std::endl; };
+    <<= [](nullptr_t /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
+            { std::cout << "Start array" << std::endl; };
 ```
+
+#### Parsing Context
+
+```cpp
+using namespace pkuyo::parsers;
+
+constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
+    >>= [](char val ,YourGlobalState& global_state, YourLocalState& state) 
+            {
+                global_state.sum += (val -'0');
+                state.last_value = (val -'0');
+                return (val -'0') * 2; 
+            };
+
+// You can pass a variable as the global context in the second parameter
+YourGlobalState global_stack;
+auto result = parser.Parse(input,global_stack);
+
+
+//The local context will have only one instance per Parse.
+auto with_local_state = WithState<YourLocalState>(/*other parsers*/);
+```
+For global context usage scenarios, refer to the examples in the [xml_parser_with_ctx](examples/xml_parser_with_ctx) directory.
 
 #### Token Stream Implementations
 
@@ -141,18 +182,20 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 
 ### Global Method
 
-| Method              | Description                                       |
-|---------------------|---------------------------------------------------|
-| `Check()`           | Create a parser only check single token           |
-| `SeqCheck()`        | Create a parser only check multi tokens           |
-| `Str()`             | Create a string-matching parser                   |
-| `Until()`           | Create a parser stop at certain token             |
-| `SingleValue()`     | Create a value parser                             |
-| `SinglePtr()`       | Create a value parser (return unique_ptr<>)       |
-| `SeqValue()`        | Create a multi-value parser                       |
-| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>) |
-| `DefaultOnError()`  | Sets a default error handler for all parsers      |
-| `DefaultRecovery()` | Sets a default panic mode recovery function       |
+| Method              | Description                                                                                               |
+|---------------------|-----------------------------------------------------------------------------------------------------------|
+| `Check()`           | Create a parser only check single token                                                                   |
+| `SeqCheck()`        | Create a parser only check multi tokens                                                                   |
+| `Str()`             | Create a string-matching parser                                                                           |
+| `Until()`           | Create a parser stop at certain token                                                                     |
+| `TryCatch()`        | Create a parser that Use a recovery parser instead of a child parser when an error occurs during parsing. |
+| `SingleValue()`     | Create a value parser                                                                                     |
+| `SinglePtr()`       | Create a value parser (return unique_ptr<>)                                                               |
+| `SeqValue()`        | Create a multi-value parser                                                                               |
+| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>)                                                         |
+| `WithState()`       | Create a  parser with a local state                                                                       |
+| `DefaultOnError()`  | Sets a default error handler for all parsers                                                              |
+| `DefaultRecovery()` | Sets a default panic mode recovery function                                                               |
 
 ### base_parser
 base_parser class used for constructing parser combinators and actual expression parsing.

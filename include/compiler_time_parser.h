@@ -29,8 +29,8 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_not(child_type && _child_parser) : child_parser(std::forward<child_type>(_child_parser)) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(this->peek_impl(stream))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
@@ -54,8 +54,8 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_pred(const child_type & _child_parser) : child_parser(_child_parser) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(this->peek_impl(stream))
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
@@ -77,9 +77,9 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_ignore(const child_type & _child_parser) : child_parser(_child_parser) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            auto re = child_parser.parse_impl(stream,state);
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            auto re = child_parser.parse_impl(stream,global_state,state);
             if(re)
                 return std::make_optional(nullptr);
             return std::optional<nullptr_t>();
@@ -106,8 +106,8 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_check(cmp_type && _cmp_value) : cmp_value(std::forward<cmp_type>(_cmp_value)) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& ) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)){
                 this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
@@ -135,8 +135,8 @@ namespace pkuyo::parsers {
 
         constexpr parser_until(const cmp_type & _cmp) : cmp(_cmp) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if constexpr(std::is_same_v<token_type,char> ||std::is_same_v<token_type,wchar_t>) {
                 if (!peek_impl(stream))
                     return std::optional<std::basic_string<token_type>>();
@@ -177,8 +177,8 @@ namespace pkuyo::parsers {
         constexpr explicit parser_ptr_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)){
                 this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
@@ -208,8 +208,8 @@ namespace pkuyo::parsers {
         constexpr explicit parser_value_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)){
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
@@ -241,8 +241,8 @@ namespace pkuyo::parsers {
             std::copy_n(_cmp_value,size,cmp_value);
         }
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             for(int i = 0;i<real_size;i++) {
                 if(stream.Peek(i) != cmp_value[i]) {
                     this->error_handle_recovery(stream);
@@ -278,8 +278,8 @@ namespace pkuyo::parsers {
         constexpr parser_ptr(cmp_type && _cmp_value,FF constructor)
                 : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)){
                 this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
@@ -313,8 +313,8 @@ namespace pkuyo::parsers {
         constexpr parser_value(cmp_type && _cmp_value,FF constructor)
                 : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
@@ -348,13 +348,13 @@ namespace pkuyo::parsers {
         constexpr parser_then(const input_type_left &parser_left,const input_type_right & parser_right)
                 : children_parsers(std::make_pair(parser_left,parser_right)){}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            using result_r = parser_result_t<input_type_right>;
-            using result_l = parser_result_t<input_type_left>;
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using result_r = parser_result_t<input_type_right,GlobalState,State>;
+            using result_l = parser_result_t<input_type_left,GlobalState,State>;
 
             using return_type = then_result_t<result_l,result_r>;
-            auto left_re = children_parsers.first.parse_impl(stream,state);
+            auto left_re = children_parsers.first.parse_impl(stream,global_state,state);
 
             // If the match fails, attempts to recover and restores the token index, then returns nullopt.
             if(left_re == std::nullopt) {
@@ -362,7 +362,7 @@ namespace pkuyo::parsers {
                 return std::optional<return_type>();
             }
 
-            auto right_re = children_parsers.second.parse_impl(stream,state);
+            auto right_re = children_parsers.second.parse_impl(stream,global_state,state);
             if(right_re == std::nullopt) {
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
@@ -389,7 +389,10 @@ namespace pkuyo::parsers {
             return children_parsers.first.peek_impl(stream);
         }
 
-    private:
+        void reset_impl() const {
+            children_parsers.first.reset_impl();
+            children_parsers.second.reset_impl();
+        }
 
     private:
         std::pair<input_type_left,input_type_right> children_parsers;
@@ -406,16 +409,16 @@ namespace pkuyo::parsers {
 
         constexpr parser_or(const input_type_l &left,const input_type_r & right) : children_parsers(std::make_pair(left,right)){}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
 
-            using result_t = filter_or_t<input_type_l,input_type_r>;
+            using result_t = filter_or_t<input_type_l,input_type_r,GlobalState,State>;
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<result_t>();
             }
             else if(children_parsers.first.peek_impl(stream)) {
-                auto re = children_parsers.first.parse_impl(stream,state);
+                auto re = children_parsers.first.parse_impl(stream,global_state,state);
                 if(!re) {
                     this->error_handle_recovery(stream);
                     return std::optional<result_t>();
@@ -423,7 +426,7 @@ namespace pkuyo::parsers {
                 else return std::optional<result_t>(std::move(re.value()));
             }
             else {
-                auto re = children_parsers.second.parse_impl(stream,state);
+                auto re = children_parsers.second.parse_impl(stream,global_state,state);
                 if(!re) {
                     this->error_handle_recovery(stream);
                     return std::optional<result_t>();
@@ -438,7 +441,11 @@ namespace pkuyo::parsers {
             return children_parsers.first.peek_impl(stream) || children_parsers.second.peek_impl(stream);
         }
 
-    private:
+
+        void reset_impl() const {
+            children_parsers.first.reset_impl();
+            children_parsers.second.reset_impl();
+        }
 
     private:
         std::pair<input_type_l,input_type_r> children_parsers;
@@ -452,13 +459,13 @@ namespace pkuyo::parsers {
     public:
         constexpr explicit parser_many(const child_type & child): child_parser(child) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            using child_return_type = decltype(child_parser.parse_impl(stream,state))::value_type;
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using child_return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
             if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
                 std::basic_string<child_return_type> results;
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -469,7 +476,7 @@ namespace pkuyo::parsers {
             }
             else if constexpr(std::is_same_v<child_return_type,nullptr_t>) {
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -481,7 +488,7 @@ namespace pkuyo::parsers {
             else {
                 std::vector<child_return_type> results;
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -494,6 +501,11 @@ namespace pkuyo::parsers {
         template<typename Stream>
         bool peek_impl(Stream &) const {
             return true;
+        }
+
+
+        void reset_impl() const {
+            child_parser.reset_impl();
         }
 
     private:
@@ -509,12 +521,12 @@ namespace pkuyo::parsers {
 
         constexpr explicit parser_more(const child_type & child): child_parser(child) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            using child_return_type = decltype(child_parser.parse_impl(stream,state))::value_type;
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using child_return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
             if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
                 std::basic_string<child_return_type> results;
-                auto first_result = child_parser.parse_impl(stream,state);
+                auto first_result = child_parser.parse_impl(stream,global_state,state);
                 if (!first_result) {
                     this->error_handle_recovery(stream);
                     return std::optional<std::basic_string<child_return_type>>();
@@ -522,7 +534,7 @@ namespace pkuyo::parsers {
                 results.push_back(*first_result);
 
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -532,14 +544,14 @@ namespace pkuyo::parsers {
                 return std::make_optional(std::move(results));
             }
             else if constexpr ( std::is_same_v<child_return_type, nullptr_t> ) {
-                auto first_result = child_parser.parse_impl(stream,state);
+                auto first_result = child_parser.parse_impl(stream,global_state,state);
                 if (!first_result) {
                     this->error_handle_recovery(stream);
                     return std::optional<nullptr_t>();
                 }
 
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -549,7 +561,7 @@ namespace pkuyo::parsers {
             }
             else {
                 std::vector<child_return_type> results;
-                auto first_result = child_parser.parse_impl(stream,state);
+                auto first_result = child_parser.parse_impl(stream,global_state,state);
                 if (!first_result) {
                     this->error_handle_recovery(stream);
                     return std::optional<std::vector<child_return_type>>();
@@ -557,7 +569,7 @@ namespace pkuyo::parsers {
                 results.push_back(std::move(*first_result));
 
                 while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,state);
+                    auto result = child_parser.parse_impl(stream,global_state,state);
                     if (!result) {
                         this->error_handle_recovery(stream);
                         break;
@@ -572,6 +584,10 @@ namespace pkuyo::parsers {
         bool peek_impl(Stream & stream) const {
             return child_parser.peek_impl(stream);
         }
+
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
     private:
         child_type child_parser;
     };
@@ -584,12 +600,12 @@ namespace pkuyo::parsers {
     public:
 
         constexpr explicit parser_optional(const child_type & child): child_parser(child) {}
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            using return_type = decltype(child_parser.parse_impl(stream,state))::value_type;
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
             std::optional<return_type> result(std::nullopt);
             if(child_parser.peek_impl(stream)) {
-                auto re = child_parser.parse_impl(stream,state);
+                auto re = child_parser.parse_impl(stream,global_state,state);
                 if (re == std::nullopt) {
                     this->error_handle_recovery(stream);
                     return std::optional<std::optional<return_type>>();
@@ -604,7 +620,9 @@ namespace pkuyo::parsers {
         bool peek_impl(Stream &) const {
             return true;
         }
-
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
     private:
         child_type child_parser;
     };
@@ -621,9 +639,9 @@ namespace pkuyo::parsers {
             return factory().peek_impl(stream);
         }
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State& state) const {
-            return factory().parse_impl(stream,state);
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            return factory().parse_impl(stream,global_state,state);
         }
     private:
        static real_type& factory() {
@@ -645,30 +663,83 @@ namespace pkuyo::parsers {
         constexpr parser_map(const child_type & source, mapper_t mapper)
                 : source(source), mapper(mapper) {}
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream & stream, State& state) const {
-            if constexpr (std::is_same_v<State, nullptr_t>) {
-                using SourceType = parser_result_t<child_type>;
-                using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>()));
+        template<typename Stream,typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
 
-                auto source_result = source.parse_impl(stream,state);
-                if (source_result == std::nullopt) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<TargetType>();
+            using SourceType = parser_result_t<child_type, GlobalState, State>;
+
+            static_assert(std::is_same_v<std::decay_t<GetArg<0,mapper_t>>, SourceType>,
+                          "Mismatched mapper function parameter type at argument 0");
+
+            constexpr int arg_size = std::tuple_size_v<GetArgs<mapper_t>>;
+
+            if constexpr (std::is_same_v<State, nullptr_t>) {
+
+                static_assert(arg_size <= 2 && arg_size > 0
+                        , "Parameter count mismatch, expected 1-2.");
+
+                if constexpr (arg_size == 2) {
+
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1,mapper_t>>, GlobalState>,
+                            "Mismatched mapper function parameter type at argument 1");
+
+                    using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
+                                                                         std::declval<std::add_lvalue_reference_t<GlobalState>>()));
+
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<TargetType>();
+                    }
+                    return std::make_optional(std::move(mapper(std::move(source_result.value()),global_state)));
                 }
-                return std::make_optional(std::move(mapper(std::move(source_result.value()))));
+                else {
+                    using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>()));
+
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<TargetType>();
+                    }
+                    return std::make_optional(std::move(mapper(std::move(source_result.value()))));
+                }
             }
             else {
-                using SourceType = parser_result_t<child_type>;
-                using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
-                                                                     std::declval<std::add_lvalue_reference<State>>()));
 
-                auto source_result = source.parse_impl(stream,state);
-                if (source_result == std::nullopt) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<TargetType>();
+                static_assert(arg_size <= 3 && arg_size > 1
+                        , "Parameter count mismatch, expected 2-3.");
+
+                if constexpr (arg_size == 3) {
+
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1, mapper_t>>, GlobalState>,
+                                  "Mismatched mapper function parameter type at argument 1");
+                    static_assert(std::is_same_v<std::decay_t<GetArg<2, mapper_t>>, State>,
+                                  "Mismatched mapper function parameter type at argument 2");
+
+                    using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
+                                                                         std::declval<std::add_lvalue_reference_t<GlobalState>>(),
+                                                                         std::declval<std::add_lvalue_reference_t<State>>()));
+
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<TargetType>();
+                    }
+                    return std::make_optional(std::move(mapper(std::move(source_result.value()), state)));
                 }
-                return std::make_optional(std::move(mapper(std::move(source_result.value()), state)));
+                else {
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1, mapper_t>>, State>,
+                                  "Mismatched mapper function parameter type at argument 1");
+                    using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
+                                                                         std::declval<std::add_lvalue_reference_t<State>>()));
+
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<TargetType>();
+                    }
+                    return std::make_optional(std::move(mapper(std::move(source_result.value()), state)));
+                }
             }
         }
 
@@ -678,7 +749,9 @@ namespace pkuyo::parsers {
         }
 
 
-
+        void reset_impl() const {
+            source.reset_impl();
+        }
     private:
         child_type source;
         mapper_t mapper;
@@ -692,22 +765,57 @@ namespace pkuyo::parsers {
         constexpr parser_where(const child_type &  parser, Predicate pred)
                 : child_parser(parser), predicate(pred) {}
 
-        template<typename Stream,typename State>
-        auto parse_impl(Stream & stream, State & state) const {
-            using ReturnType = parser_result_t<child_type>;
+        template<typename Stream,typename GlobalState, typename State>
+        auto parse_impl(Stream& stream,GlobalState& global_state , State& state) const {
+            using ReturnType = parser_result_t<child_type,GlobalState,State>;
+            static_assert(std::is_same_v<std::decay_t<GetArg<0, Predicate>>, ReturnType>,
+                          "Mismatched pred function parameter type at argument 0");
 
-            auto result = child_parser.parse_impl(stream,state);
+            constexpr int arg_size = std::tuple_size_v<GetArgs<Predicate>>;
+
+
+            auto result = child_parser.parse_impl(stream,global_state,state);
 
             if constexpr (std::is_same_v<nullptr_t,State>) {
-                if(!result || !predicate(*result)) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<ReturnType>();
+                static_assert(arg_size <= 2 && arg_size > 0
+                        , "Parameter count mismatch, expected 1-2.");
+                if constexpr (arg_size == 2) {
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1, Predicate>>, GlobalState>,
+                                  "Mismatched pred function parameter type at argument 1");
+                    if (!result || !predicate(*result,global_state)) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<ReturnType>();
+                    }
+                }
+                else {
+                    if (!result || !predicate(*result)) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<ReturnType>();
+                    }
                 }
             }
             else {
-                if(!result || !predicate(*result,state)) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<ReturnType>();
+
+                static_assert(arg_size <= 3 && arg_size > 1
+                        , "Parameter count mismatch, expected 2-3.");
+
+                if constexpr (arg_size == 3) {
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1, Predicate>>, GlobalState>,
+                                  "Mismatched pred function parameter type at argument 1");
+                    static_assert(std::is_same_v<std::decay_t<GetArg<2, Predicate>>, State>,
+                                  "Mismatched pred function parameter type at argument 2");
+                    if (!result || !predicate(*result, global_state, state)) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<ReturnType>();
+                    }
+                }
+                else {
+                    static_assert(std::is_same_v<std::decay_t<GetArg<1, Predicate>>, State>,
+                                  "Mismatched pred function parameter type at argument 1");
+                    if (!result || !predicate(*result, state)) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<ReturnType>();
+                    }
                 }
             }
             return result;
@@ -718,6 +826,10 @@ namespace pkuyo::parsers {
         template<typename Stream>
         bool peek_impl(Stream & stream) const {
             return child_parser.peek_impl(stream);
+        }
+
+        void reset_impl() const {
+            child_parser.reset_impl();
         }
     private:
         child_type child_parser;
@@ -731,8 +843,8 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
@@ -761,8 +873,8 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
@@ -794,8 +906,8 @@ namespace pkuyo::parsers {
             std::copy_n(input,buff_size,cmp);
         }
 
-        template<typename Stream, typename State>
-        auto parse_impl(Stream& stream, State&) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
@@ -823,13 +935,12 @@ namespace pkuyo::parsers {
     template<typename Parser, typename State>
     class state_parser : public base_parser<typename Parser::token_t, state_parser<Parser, State>> {
     public:
-        constexpr state_parser(Parser&& parser)
+        constexpr explicit state_parser(Parser&& parser)
                 : parser(std::forward<Parser>(parser)) {}
 
-        template<typename Stream, typename LastState>
-        auto parse_impl(Stream& stream, LastState&) const {
-            State newState;
-            return parser.parse_impl(stream, newState);
+        template<typename Stream, typename GlobalState, typename LastState>
+        auto parse_impl(Stream& stream,GlobalState& global_state, LastState&) const {
+            return parser.parse_impl(stream,global_state, factory());
         }
 
         template<typename Stream>
@@ -837,6 +948,17 @@ namespace pkuyo::parsers {
             return parser.peek_impl(stream);
         }
 
+        State& factory(bool init = false)const {
+            static State newState;
+            if(init)
+                newState = State();
+            return newState;
+        }
+
+        void reset_impl() const {
+            parser.reset_impl();
+            factory(true);
+        }
     private:
         Parser parser;
     };
@@ -845,15 +967,17 @@ namespace pkuyo::parsers {
     class try_catch_parser : public base_parser<typename Parser::token_t, try_catch_parser<Parser, Recovery>> {
     public:
         constexpr try_catch_parser(Parser&& parser, Recovery&& recovery)
-                : parser(std::forward<Parser>(parser.OnError([](auto,auto,auto,auto,auto){return;}).OnRecovery([](auto) {return true;}))),
+                : parser(std::forward<Parser>(parser.OnRecovery([](auto) {return true;}))),
                 recovery(std::forward<Recovery>(recovery)) {}
 
-        template<typename Stream>
-        auto parse_impl(Stream& stream) const {
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            if(!parser.peek_impl(stream))
+                return recovery.parse_impl(stream,global_state,state);
             try {
-                return parser.parse_impl(stream);
+                return parser.parse_impl(stream,global_state,state);
             } catch (const parser_exception&) {
-                return recovery.parse_impl(stream);
+                return recovery.parse_impl(stream,global_state,state);
             }
         }
 
@@ -862,6 +986,10 @@ namespace pkuyo::parsers {
             return parser.peek_impl(stream);
         }
 
+        void reset_impl() const {
+            parser.reset_impl();
+            recovery.reset_impl();
+        }
     private:
         Parser parser;
         Recovery recovery;
@@ -1023,10 +1151,10 @@ namespace pkuyo::parsers {
     template<typename child_type>
     requires is_parser<child_type>
     constexpr auto Ignore(child_type && child) {
-        return parser_ignore<std::remove_reference_t<child_type>>(child);
+        return parser_ignore<std::remove_reference_t<child_type>>(std::forward<child_type>(child));
     }
 
-    template<typename Parser, typename State>
+    template<typename State,typename Parser>
     constexpr auto WithState(Parser&& parser) {
         return state_parser<Parser, State>(std::forward<Parser>(parser));
     }
@@ -1169,29 +1297,30 @@ namespace pkuyo::parsers {
         return Map(std::forward<parser_type>(parser),mapper);
     }
 
+    template <typename Action,size_t ...N>
+    constexpr auto semantic_action_impl(Action&& action,std::index_sequence<N...>) {
+        return [action = std::forward<Action>(action)](GetArg<0,Action>&& self, GetArg<N+1,Action>&&... val) {
+            action(self,val...);
+            return self; // return original value
+        };
+    }
+
     // Overloads '<<=' for semantic action injection, retaining the original return value.
     template <typename parser_type,typename Action>
     requires is_parser<parser_type>
     constexpr auto operator<<=(const parser_type & parser,Action&& action) {
         return Map(
                 parser,
-                [action = std::forward<Action>(action)](GetArg<0,Action> && val) {
-                    action(val);
-                    return val; // return original value
-                }
+                semantic_action_impl(std::forward<Action>(action),std::make_index_sequence<std::tuple_size_v<GetArgs<Action>>-1>())
         );
     }
+
 
     //Creates parser_where using *this and pred function.
     template <typename parser_type,typename Action>
     requires is_parser<parser_type>
     constexpr auto operator&&(const parser_type & parser,Action&& pred) {
-        return Where(
-                parser,
-                [action = std::forward<Action>(pred)](GetArg<0,Action> && val) {
-                    return action(std::forward<GetArg<0,Action>>(val));
-                }
-        );
+        return Where(parser,pred);
     }
 }
 #endif //LIGHT_PARSER_COMPILER_TIME_PARSER_H

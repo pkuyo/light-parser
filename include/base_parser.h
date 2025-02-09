@@ -90,16 +90,36 @@ namespace pkuyo::parsers {
         // (May throw exceptions.)
         template <typename Stream>
         auto Parse(Stream& stream) const {
-            nullptr_t t= nullptr;
-            return static_cast<const derived_type&>(*this).parse_impl(stream,t);
+            this->Reset();
+            nullptr_t local_state= nullptr;
+            nullptr_t global_state = nullptr;
+            return static_cast<const derived_type&>(*this).parse_impl(stream,global_state,local_state);
         }
 
-        template <typename Stream,typename State>
-        auto Parse(Stream& stream, State& state) const {
-            return static_cast<const derived_type&>(*this).parse_impl(stream,state);
+        template <typename Stream,typename GlobalState>
+        auto Parse(Stream& stream,GlobalState & global_state) const {
+            this->Reset();
+            nullptr_t t= nullptr;
+            return static_cast<const derived_type&>(*this).parse_impl(stream,global_state,t);
         }
+
+        template <typename Stream,typename GlobalState,typename State>
+        auto Parse(Stream& stream,GlobalState & global_state, State& state) const {
+            auto re =  static_cast<const derived_type&>(*this).parse_impl(stream,global_state,state);
+            return re;
+        }
+
+        void reset_impl() const { }
 
     protected:
+
+
+
+        void Reset() const {
+            static_cast<const derived_type&>(*this).reset_impl();
+        }
+
+
 
         constexpr base_parser() = default;
     };

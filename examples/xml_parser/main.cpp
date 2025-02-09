@@ -49,7 +49,7 @@ namespace xml {
 
 
     struct open_tag_check : public base_parser<char,open_tag_check> {
-        optional<nullptr_t> parse_impl(auto& stream) const {
+        optional<nullptr_t> parse_impl(auto& stream,auto,auto) const {
             if(peek_impl(stream)) {
                 stream.Seek(1);
                 return nullptr;
@@ -97,8 +97,8 @@ namespace xml {
             };
 
     struct lazy_element : public base_parser<char,lazy_element> {
-        optional<Element> parse_impl(auto & stream) const {
-            return element.Parse(stream);
+        optional<Element> parse_impl(auto & stream,auto& g_ctx,auto& ctx) const {
+            return element.Parse(stream,g_ctx,ctx);
         }
         bool peek_impl(auto & stream) const {
             return element.Peek(stream);
@@ -111,7 +111,13 @@ namespace xml {
 int main() {
 
 
-    pkuyo::parsers::file_stream xml("test.txt");
+    pkuyo::parsers::string_stream xml(R"(
+        <root>
+            <person id="123">
+                <name>John</name>
+                <age>30</age>
+            </person>
+        </root>)");
 
 
     try {

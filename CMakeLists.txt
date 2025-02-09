@@ -20,6 +20,7 @@ include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 add_subdirectory(test)
 add_subdirectory(external/googletest)
 add_subdirectory(examples/customizable_tokens_parser)
+add_subdirectory(examples/xml_parser_with_ctx)
 add_subdirectory(examples/xml_parser)
 add_subdirectory(examples/calc_parser)
 

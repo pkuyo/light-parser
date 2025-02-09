@@ -300,6 +300,17 @@ TEST_F(ParserTest, StringParser) {
     EXPECT_EQ(end, "end");
 }
 
+TEST_F(ParserTest, TryCatchParser) {
+
+    auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"));
+    string_stream tokens("com-Recovery");
+
+    auto result = parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+
+    EXPECT_EQ(*result, "com-Recovery");
+}
+
 TEST_F(ParserTest, ComplexExpression) {
     auto num = SingleValue<TestToken,std::string,int>("num", [](const TestToken &t) {
         return 12;

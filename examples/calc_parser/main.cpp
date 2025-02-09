@@ -61,8 +61,8 @@ namespace num_parser {
     }).Name("expression");
 
     struct LazyExpr : public base_parser<char,LazyExpr> {
-         std::optional<double> parse_impl(auto& stream) const {
-            return expression.Parse(stream);
+         std::optional<double> parse_impl(auto& stream,auto g_ctx,auto ctx) const {
+            return expression.Parse(stream,g_ctx,ctx);
         }
         bool peek_impl(auto& stream) const {
             return expression.Peek(stream);

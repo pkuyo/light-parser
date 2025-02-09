@@ -81,8 +81,8 @@ namespace json {
 
 
     struct lazy_value : public base_parser<char,lazy_value> {
-        std::optional<unique_ptr<AstNode>> parse_impl(auto& stream) const {
-            return value.Parse(stream);
+        std::optional<unique_ptr<AstNode>> parse_impl(auto& stream,auto& g_ctx,auto& ctx) const {
+            return value.Parse(stream,g_ctx,ctx);
         }
         bool peek_impl(auto & stream) const {
             return value.Peek(stream);

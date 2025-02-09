@@ -28,15 +28,7 @@ namespace pkuyo::parsers {
     class base_token_stream {
     public:
 
-        template<typename T>
-        T& GetCtx() {
-            return std::any_cast<T>(global_ctx);
-        }
 
-        template<typename T>
-        void SetCtx(T&& new_value) {
-            global_ctx = new_value;
-        }
 
         token_type Get() {
             return derived().get_impl();
@@ -79,8 +71,6 @@ namespace pkuyo::parsers {
     protected:
 
         std::string name;
-
-        std::any global_ctx;
 
         derived_type &derived() { return static_cast<derived_type &>(*this); }
 
@@ -215,7 +205,7 @@ namespace pkuyo::parsers {
         }
 
         void fill_buffer(size_t required) {
-            while (buffer.size() <= position+required- mark_pos) {
+            while (buffer.size() <= position+required- mark_pos && !file.eof()) {
                 buffer.push_back(get_char());
             }
         }

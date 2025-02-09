@@ -115,11 +115,11 @@ namespace pkuyo::parsers {
 
 namespace pkuyo::parsers{
 
-    template <typename parser_type>
+    template <typename parser_type,typename g_state_type,typename state_type>
     using parser_result_t = decltype(std::declval<std::decay_t<parser_type>>().Parse(
-            std::declval<std::add_lvalue_reference_t<
-                    container_stream<std::vector<typename std::decay_t<parser_type>::token_t>>
-                    >>()))::value_type;
+        std::declval<std::add_lvalue_reference_t<container_stream<std::vector<typename std::decay_t<parser_type>::token_t>>>>(),
+        std::declval<std::add_lvalue_reference_t<std::decay_t<g_state_type>>>(),
+        std::declval<std::add_lvalue_reference_t<std::decay_t<state_type>>>()))::value_type;
 
 
     //parser_then
@@ -187,8 +187,8 @@ namespace pkuyo::parsers{
                                     std::variant<l,r>>
                     >
             >;
-    template <typename l, typename r>
-    using filter_or_t =filter_or_impl_t<parser_result_t<l>,parser_result_t<r>>;
+    template <typename l, typename r,typename g_state,typename state>
+    using filter_or_t =filter_or_impl_t<parser_result_t<l,g_state,state>,parser_result_t<r,g_state,state>>;
 }
 
 #endif //LIGHT_PARSER_TRAITS_H
