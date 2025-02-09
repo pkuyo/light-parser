@@ -16,7 +16,7 @@
 #ifndef LIGHT_PARSER_RUNTIME_PARSER_H
 #define LIGHT_PARSER_RUNTIME_PARSER_H
 #include "base_parser.h"
-#include "compiler_time_parser.h"
+#include "compile_time_parser.h"
 #include <regex>
 
 namespace pkuyo::parsers {

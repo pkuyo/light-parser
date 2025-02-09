@@ -15,8 +15,8 @@
  * - Operator overloading for syntactic composition
  */
 
-#ifndef LIGHT_PARSER_COMPILER_TIME_PARSER_H
-#define LIGHT_PARSER_COMPILER_TIME_PARSER_H
+#ifndef LIGHT_PARSER_COMPILE_TIME_PARSER_H
+#define LIGHT_PARSER_COMPILE_TIME_PARSER_H
 
 #include "base_parser.h"
 
@@ -1323,4 +1323,4 @@ namespace pkuyo::parsers {
         return Where(parser,pred);
     }
 }
-#endif //LIGHT_PARSER_COMPILER_TIME_PARSER_H
+#endif //LIGHT_PARSER_COMPILE_TIME_PARSER_H

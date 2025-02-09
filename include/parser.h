@@ -22,7 +22,7 @@
 #include "error_handler.h"
 #include "runtime_parser.h"
 #include "token_stream.h"
-#include "compiler_time_parser.h"
+#include "compile_time_parser.h"
 
 
 #endif //LIGHT_PARSER_PARSER_H

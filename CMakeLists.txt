@@ -11,7 +11,7 @@ add_executable(light_parser main.cpp
         include/error_handler.h
         include/traits.h
         include/base_parser.h
-        include/compiler_time_parser.h
+        include/compile_time_parser.h
         include/runtime_parser.h
         include/token_stream.h
 )
