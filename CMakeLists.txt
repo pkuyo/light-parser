@@ -3,6 +3,9 @@ project(light_parser)
 
 set(CMAKE_CXX_STANDARD 20)
 
+if(WIN32)
+    add_compile_definitions(IS_WINDOWS)
+endif()
 include_directories(include)
 
 
@@ -15,6 +18,7 @@ add_executable(light_parser main.cpp
         include/runtime_parser.h
         include/token_stream.h
 )
+
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
 add_subdirectory(test)
