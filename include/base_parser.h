@@ -90,11 +90,17 @@ namespace pkuyo::parsers {
         // (May throw exceptions.)
         template <typename Stream>
         auto Parse(Stream& stream) const {
-            return static_cast<const derived_type&>(*this).parse_impl(stream);
+            nullptr_t t= nullptr;
+            return static_cast<const derived_type&>(*this).parse_impl(stream,t);
         }
 
+        template <typename Stream,typename State>
+        auto Parse(Stream& stream, State& state) const {
+            return static_cast<const derived_type&>(*this).parse_impl(stream,state);
+        }
 
     protected:
+
         constexpr base_parser() = default;
     };
 

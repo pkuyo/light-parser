@@ -33,8 +33,8 @@ namespace pkuyo::parsers {
         parser_multi_check(const sequence_type & _expected_seq) : expected_seq(_expected_seq) {}
 
 
-        template<typename Stream>
-        auto parse_impl(Stream & stream) const {
+        template<typename Stream,typename State>
+        auto parse_impl(Stream& stream,State &) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<nullptr_t>();
@@ -121,8 +121,8 @@ namespace pkuyo::parsers {
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
 
 
-        template<typename Stream>
-        auto parse_impl(Stream & stream) const {
+        template<typename Stream,typename State>
+        auto parse_impl(Stream& stream,State &) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<std::unique_ptr<return_type>>();
@@ -160,8 +160,8 @@ namespace pkuyo::parsers {
                 : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
 
 
-        template<typename Stream>
-        auto parse_impl(Stream & stream) const {
+        template<typename Stream,typename State>
+        auto parse_impl(Stream& stream,State &) const {
             if(!this->peek_impl(stream)) {
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
