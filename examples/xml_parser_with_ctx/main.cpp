@@ -9,9 +9,9 @@
 #include <variant>
 #include <iostream>
 #include <stack>
+#include <chrono>
 #include "xml_def.h"
 
-#include <chrono>
 
 
 namespace xml {
@@ -20,29 +20,30 @@ namespace xml {
 /*
  * ---Terminal Symbol:
  *
- * space            = '\n' | '\r' | ' '
- * skip_space_must  = space+
- * skip_space       = space*
+ * skip_space       = ('\n' | '\r' | ' ')*
  *
  * tag_name         = [A-Za-z_:][A-Za-z0-9_:.-]*
  * quoted_str       = '"' [^"]* '"' | "'" [^']* "'"
  *
  * text             = [^<]+
  *
- *
  * ---Non-terminal Symbol:
  *
+ * attribute        = tag_name '=' quoted_str skip_space
  *
- * attribute        = tag_name '=' quoted_str
  * attributes       = (skip_space_must attribute)*
  *
  * node             = text | element
  *
  * content          = skip_space node* skip_space
  *
- * element          = '<' tag_name attributes '>' content '</' tag_name '>'
+ * open_tag         = open_tag_check tag_name skip_space attributes
  *
- * document         = skip_space ('<?xml' .*? '?>' skip_space)* skip_space element
+ * close_tag        = '</' tag_name '>'
+ *
+ * element          = open_tag ( '/>' | '>' content close_tag ) skip_space
+ *
+ * document         = skip_space ( '<?xml' [^?]+ '?>' skip_space)* element
  */
 
     using namespace pkuyo::parsers;
@@ -73,8 +74,8 @@ namespace xml {
     struct lazy_element;
 
     constexpr auto tag_name = (
-            (SingleValue<char>([](auto c) {return isalpha(c) || c == '_';}) >>
-            *SingleValue<char>([](auto c) {return isalnum(c) || c == '_' ;})
+            (SingleValue<char>([](auto c) {return isalpha(c) || c == '_' || c == ':';}) >>
+            *SingleValue<char>([](auto c) {return isalnum(c) || c == '_' || c == '-' || c == ':' || c == '.';})
             ) >>= [](tuple<char,std::string> && part, XmlStack & ctx) {
                 std::get<1>(part).push_back(std::get<0>(part));
                 return std::get<1>(part);
@@ -83,11 +84,13 @@ namespace xml {
 
     constexpr auto quoted_str = (('"' >> Until<char>('"') >> '"') | ('\'' >> Until<char>('\'') >> '\'')).Name("quoted_str");
 
-    constexpr auto attributes = (* ( (tag_name >> '=' >> quoted_str >> skip_space)
-            >>= [] (tuple<std::string, std::string> && part, XmlStack & ctx) {
+    constexpr auto attribute =  ( (tag_name >> '=' >> quoted_str >> skip_space)
+                                          >>= [] (tuple<std::string, std::string> && part, XmlStack & ctx) {
                 ctx.top()->attributes.emplace_back(std::move(part));
                 return nullptr;
-    })).Name("attributes");
+            }).Name("attribute");
+
+    constexpr auto attributes = (*attribute).Name("attributes");
 
     constexpr auto text = Until<char>('<').Name("text");
 
@@ -135,7 +138,7 @@ namespace xml {
         }
     };
 
-    constexpr auto document = skip_space >> element;
+    constexpr auto document = skip_space >> *("<?xml" >> -Until<char>('?') >> "?>" >> skip_space) >> element;
 }
 
 int main() {

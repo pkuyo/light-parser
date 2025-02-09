@@ -2,6 +2,10 @@
 // Created by pkuyo on 2025/2/4.
 //
 
+
+// This is a simple implementation of an XML parser. It does not support self-closing tags.
+// For a more complete implementation, please refer to the 'xml_parser_with_ctx' folder
+
 #include "parser.h"
 #include <string>
 #include <vector>
@@ -23,25 +27,28 @@ namespace xml {
  * skip_space_must  = space+
  * skip_space       = space*
  *
- * tag_name         = [A-Za-z_:][A-Za-z0-9_:.-]*
+ * tag_name         = [A-Za-z]+
  * quoted_str       = '"' [^"]* '"' | "'" [^']* "'"
  *
  * text             = [^<]+
  *
- *
  * ---Non-terminal Symbol:
  *
- *
  * attribute        = tag_name '=' quoted_str
+ *
  * attributes       = (skip_space_must attribute)*
  *
  * node             = text | element
  *
  * content          = skip_space node* skip_space
  *
- * element          = '<' tag_name attributes '>' content '</' tag_name '>'
+ * open_tag         = open_tag_check tag_name attributes '>'
  *
- * document         = skip_space ('<?xml' .*? '?>' skip_space)* skip_space element
+ * close_tag        = </' tag_name '>'
+ *
+ * element          = open_tag content close_tag skip_space
+ *
+ * document         = skip_space ( '<?xml' [^?]+ '?>' skip_space)* element
  */
 
     using namespace pkuyo::parsers;
@@ -104,7 +111,7 @@ namespace xml {
         }
     };
 
-    constexpr auto document = skip_space >> element;
+    constexpr auto document = skip_space >> *("<?xml" >> -Until<char>('?') >> "?>" >> skip_space) >> element;
 }
 
 int main() {
