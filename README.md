@@ -153,7 +153,7 @@ auto result = parser.Parse(input,global_stack);
 //The local context will have only one instance per Parse.
 auto with_local_state = WithState<YourLocalState>(/*other parsers*/);
 ```
-For global context usage scenarios, refer to the examples in the [xml_parser_with_ctx](examples/xml_parser_with_ctx) directory.
+For context usage scenarios, refer to the examples in the [examples/sax_xml_parser](examples/sax_xml_parser) directory.
 
 #### Token Stream Implementations
 
