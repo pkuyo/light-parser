@@ -206,6 +206,9 @@ namespace pkuyo::parsers{
             std::basic_string<T>,
             std::vector<T>
     >>;
+
+    template<typename T,typename Y>
+    constexpr bool base_or_same_v = std::is_same_v<T,Y> || std::is_base_of_v<T,Y>;
 }
 
 #endif //LIGHT_PARSER_TRAITS_H

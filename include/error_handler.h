@@ -116,7 +116,7 @@ namespace pkuyo::parsers {
 
     template<typename token_type>
     panic_mode_recovery<token_type> parser_error_handler<token_type>::recovery =
-            panic_mode_recovery<token_type>([](auto && t) {return false;});
+            panic_mode_recovery<token_type>([](auto && t) {return true;});
 
     template<typename token_type>
     std::function<std::remove_pointer_t<typename parser_error_handler<token_type>::error_handler_t>>
