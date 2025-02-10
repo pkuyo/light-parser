@@ -111,44 +111,6 @@ namespace pkuyo::parsers {
 //        std::string pattern;
 //        std::regex regex;
 //    };
-    // A parser that matches tokens.
-    //  If the match is successful, it returns a 'std::unique<result_type>' constructed with the sequence as an argument;
-    //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type, typename sequence_type, typename FF>
-    class parser_multi_ptr : public base_parser<token_type, parser_multi_ptr<token_type,return_type,sequence_type, FF>> {
-    public:
-        parser_multi_ptr(sequence_type && _expected_seq, std::function<std::unique_ptr<return_type>(sequence_type)> _constructor)
-                : expected_seq(std::forward<sequence_type>(_expected_seq)), constructor(std::move(_constructor)) {}
-
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&)  const {
-            if(!this->peek_impl(stream)) {
-                this->error_handle_recovery(stream);
-                return std::optional<std::unique_ptr<return_type>>();
-            }
-            stream.Seek(expected_seq.size());
-            return constructor(expected_seq);
-
-        }
-
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            int index = 0;
-            for(const auto & it : expected_seq) {
-                if(stream.Eof(index) || stream.Peek(index) != it)
-                    return false;
-                index++;
-
-            }
-            return true;
-        }
-
-
-    private:
-        sequence_type expected_seq;
-        FF constructor;
-    };
 
     // A parser that matches tokens.
     //  If the match is successful, it returns a 'result_type' constructed with the sequence as an argument;
@@ -232,7 +194,7 @@ namespace pkuyo::parsers {
     template<typename token_type, typename cmp_type, typename return_type>
     auto SeqPtr(const cmp_type & cmp_value) {
         auto constructor = [](const cmp_type& s) { return std::make_unique<return_type>(s); };
-        return parser_multi_ptr<token_type,return_type,cmp_type, decltype(constructor)>(cmp_value,constructor);
+        return parser_multi_ptr<token_type,std::unique_ptr<return_type>,cmp_type, decltype(constructor)>(cmp_value,constructor);
     }
 
 

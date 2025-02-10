@@ -23,15 +23,6 @@
 
 namespace pkuyo::parsers {
 
-    // A helper template to determine whether a type can be used in `std::format`.
-    template<typename T, typename = void>
-    struct is_formattable : std::false_type {
-    };
-
-    template<typename T>
-    struct is_formattable<T, std::void_t<decltype(std::formatter<T>())>> : std::true_type {
-    };
-
 
     // A helper template for extracting the raw type from smart pointer.
     template <typename T>
@@ -45,7 +36,25 @@ namespace pkuyo::parsers {
     };
 
     template <typename T>
+    struct remove_smart_pointer<std::shared_ptr<T>> {
+        using type = T;
+    };
+
+
+    template <typename T>
     using remove_smart_pointer_t = remove_smart_pointer<T>::type;
+
+    template <typename T>
+    struct is_smart_pointer : std::false_type {};
+
+    template <typename T>
+    struct is_smart_pointer<std::unique_ptr<T>> : std::true_type {};
+
+    template <typename T>
+    struct is_smart_pointer<std::shared_ptr<T>> : std::true_type {};
+
+    template <typename T>
+    constexpr bool is_smart_pointer_v = is_smart_pointer<T>::value;
 
     template <typename T, typename Signature>
     struct is_convertible_to_function_impl;
@@ -189,6 +198,14 @@ namespace pkuyo::parsers{
             >;
     template <typename l, typename r,typename g_state,typename state>
     using filter_or_t =filter_or_impl_t<parser_result_t<l,g_state,state>,parser_result_t<r,g_state,state>>;
+
+    template<typename T>
+    using result_container_t = std::conditional_t<std::is_same_v<T,nullptr_t>,nullptr_t,
+            std::conditional_t<
+            std::is_same_v<T, char> || std::is_same_v<T, wchar_t>,
+            std::basic_string<T>,
+            std::vector<T>
+    >>;
 }
 
 #endif //LIGHT_PARSER_TRAITS_H

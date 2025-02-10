@@ -22,6 +22,15 @@
 
 namespace pkuyo::parsers {
 
+    template<typename child_type>
+    class parser_more;
+
+
+    template<typename child_type>
+    class parser_many;
+
+
+
     // A parser that only peek tokens, where child_parser->Peek() == false, returning 'nullptr'
     template<typename child_type>
     class parser_not : public base_parser<typename std::decay_t<child_type>::token_t,parser_not<child_type>>{
@@ -127,6 +136,35 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
+    template<typename token_type,typename buff_type,size_t buff_size>
+    class parser_buff_seq_check : public base_parser<token_type,parser_buff_seq_check<token_type,buff_type,buff_size>> {
+    public:
+        constexpr parser_buff_seq_check(const buff_type (&input)[buff_size]) {
+            std::copy_n(input,buff_size,cmp);
+        }
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
+                return std::optional<nullptr_t>();
+            }
+            stream.Seek(real_size);
+            return std::make_optional(nullptr);
+        }
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            for(int i = 0; i< real_size;i++) {
+                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
+
+        buff_type cmp[buff_size]{};
+    };
 
     // A parser class that checks and stores input values until the input equals a specified comparison value.
     // This class is used to continuously receive input and stop storing when the input value equals `cmp_value`. It is primarily designed for parsing data under specific conditions
@@ -165,47 +203,18 @@ namespace pkuyo::parsers {
     };
 
 
-
-    // A parser that only matches the first token.
-    //  Uses a function to determine whether the token matches.
-    //  If the match is successful, it returns a 'std::unique_ptr<result_type>' constructed with the token as an argument;
-    //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
-    template<typename token_type, typename return_type,typename FF>
-    class parser_ptr_with_func : public base_parser<token_type, parser_ptr_with_func<token_type,return_type,FF>> {
-
-
-        constexpr explicit parser_ptr_with_func(FF _cmp_func)
-                : cmp_func(_cmp_func){}
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            if(!this->peek_impl(stream)){
-                this->error_handle_recovery(stream);
-                return std::optional<std::unique_ptr<return_type>>();
-            }
-            return std::make_optional(std::move(std::make_unique<return_type>(stream.Get())));
-
-        }
-
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            return !stream.Eof() && cmp_func(stream.Peek());
-        }
-
-    private:
-        FF cmp_func;
-    };
-
     // A parser that only matches the first token.
     //  Uses a function to determine whether the token matches.
     //  If the match is successful, it returns a 'result_type' constructed with the token as an argument;
     //  if the match fails, it attempts an error recovery strategy and returns std::nullopt.
     template<typename token_type, typename return_type, typename FF>
-    class parser_value_with_func : public base_parser<token_type, parser_value_with_func<token_type,return_type, FF>> {
+    class parser_with_func : public base_parser<token_type, parser_with_func<token_type,return_type, FF>> {
 
     public:
+        friend class parser_many<parser_with_func<token_type,return_type,FF>>;
+        friend class parser_more<parser_with_func<token_type,return_type,FF>>;
 
-        constexpr explicit parser_value_with_func(FF _cmp_func)
+        constexpr explicit parser_with_func(FF _cmp_func)
                 : cmp_func(_cmp_func){}
 
         template<typename Stream, typename GlobalState, typename State>
@@ -214,7 +223,12 @@ namespace pkuyo::parsers {
                 this->error_handle_recovery(stream);
                 return std::optional<return_type>();
             }
-            return std::make_optional<return_type>(stream.Get());
+            if constexpr (is_smart_pointer_v<return_type>) {
+                return std::make_optional(std::move(return_type(new remove_smart_pointer_t<return_type>(stream.Get()))));
+            }
+            else {
+                return std::make_optional<return_type>(stream.Get());
+            }
 
         }
 
@@ -226,6 +240,7 @@ namespace pkuyo::parsers {
     private:
         FF cmp_func;
     };
+
 
     // A parser that uses 'std::basic_string_view<token_type>' to compare 'token_type'.
     //  If the match is successful, it returns std::optional<std::basic_string_view<token_type>>;
@@ -265,40 +280,6 @@ namespace pkuyo::parsers {
         token_type cmp_value[size]{};
     };
 
-    // A parser that only matches the first token.
-    //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
-    //  If the match is successful, it returns 'std::unique_ptr<return_type>';
-    //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
-    template<typename token_type, typename return_type, typename cmp_type, typename FF>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
-    class parser_ptr : public base_parser<token_type, parser_ptr<token_type,return_type,cmp_type,FF>> {
-
-    public:
-
-        constexpr parser_ptr(cmp_type && _cmp_value,FF constructor)
-                : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            if(!this->peek_impl(stream)){
-                this->error_handle_recovery(stream);
-                return std::optional<std::unique_ptr<return_type>>();
-            }
-
-            return std::make_optional(std::move((constructor(stream.Get()))));
-
-
-        }
-
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            return !stream.Eof() && stream.Peek() == cmp_value;
-        }
-
-    private:
-        FF constructor;
-        cmp_type cmp_value;
-    };
 
     // A parser that only matches the first token.
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
@@ -306,11 +287,14 @@ namespace pkuyo::parsers {
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename return_type, typename cmp_type,typename FF>
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
-    class parser_value : public base_parser<token_type, parser_value<token_type,return_type,cmp_type,FF>> {
+    class parser_single : public base_parser<token_type, parser_single<token_type,return_type,cmp_type,FF>> {
+
+        friend class parser_many<parser_single<token_type,return_type,cmp_type,FF>>;
+        friend class parser_more<parser_single<token_type,return_type,cmp_type,FF>>;
 
     public:
 
-        constexpr parser_value(cmp_type && _cmp_value,FF constructor)
+        constexpr parser_single(cmp_type && _cmp_value,FF constructor)
                 : cmp_value(std::forward<cmp_type>(_cmp_value)), constructor(constructor) {}
 
         template<typename Stream, typename GlobalState, typename State>
@@ -334,6 +318,40 @@ namespace pkuyo::parsers {
         cmp_type cmp_value;
     };
 
+    template<typename token_type,typename return_type,typename buff_type,size_t buff_size,typename FF>
+    class parser_buff_seq : public base_parser<token_type,parser_buff_seq<token_type,return_type,buff_type,buff_size,FF>> {
+    public:
+
+
+        constexpr parser_buff_seq(const buff_type (&input)[buff_size], FF constructor) : constructor(constructor) {
+            std::copy_n(input,buff_size,cmp);
+        }
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
+            if(!this->peek_impl(stream)) {
+                this->error_handle_recovery(stream);
+                return std::optional<return_type>();
+            }
+            stream.Seek(real_size);
+            return std::make_optional(constructor(cmp));
+        }
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            for(int i = 0; i< real_size;i++) {
+                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        buff_type cmp[buff_size]{};
+
+        static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
+
+        FF constructor;
+    };
 
     // A parser that sequentially satisfies both base_parser<..., input_type_left> and base_parser<..., input_type_right>.
     //  If the return_type of one of the sub-parsers is nullptr_t, it directly returns the result of the other sub-parser;
@@ -462,41 +480,19 @@ namespace pkuyo::parsers {
         template<typename Stream, typename GlobalState, typename State>
         auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
             using child_return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
-            if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
-                std::basic_string<child_return_type> results;
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
-                    results.push_back(*result);
-                }
-                return std::make_optional(std::move(results));
-            }
-            else if constexpr(std::is_same_v<child_return_type,nullptr_t>) {
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
 
+            result_container_t<child_return_type> results;
+            while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                auto result = child_parser.parse_impl(stream, global_state, state);
+                if (!result) {
+                    this->error_handle_recovery(stream);
+                    break;
                 }
-                return std::make_optional(nullptr);
-            }
-            else {
-                std::vector<child_return_type> results;
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
+                if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
                     results.push_back(std::move(*result));
-                }
-                return std::make_optional(std::move(results));
             }
+            return std::make_optional(std::move(results));
+
         }
         template<typename Stream>
         bool peek_impl(Stream &) const {
@@ -512,6 +508,7 @@ namespace pkuyo::parsers {
         child_type child_parser;
     };
 
+
     // Match the child parser 1 or more times, returning std::vector<child_return_type> (std::basic_string<child_return_type> for char or wchar_t).
     // If matching fails, attempt error recovery strategy and return std::nullopt.
     template<typename child_type>
@@ -524,60 +521,26 @@ namespace pkuyo::parsers {
         template<typename Stream, typename GlobalState, typename State>
         auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
             using child_return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
-            if constexpr ( std::is_same_v<child_return_type, char> ||  std::is_same_v<child_return_type, wchar_t>) {
-                std::basic_string<child_return_type> results;
-                auto first_result = child_parser.parse_impl(stream,global_state,state);
-                if (!first_result) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<std::basic_string<child_return_type>>();
-                }
-                results.push_back(*first_result);
-
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
-                    results.push_back(*result);
-                }
-                return std::make_optional(std::move(results));
+            result_container_t<child_return_type> results;
+            auto first_result = child_parser.parse_impl(stream, global_state, state);
+            if (!first_result) {
+                this->error_handle_recovery(stream);
+                return std::optional<result_container_t<child_return_type>>();
             }
-            else if constexpr ( std::is_same_v<child_return_type, nullptr_t> ) {
-                auto first_result = child_parser.parse_impl(stream,global_state,state);
-                if (!first_result) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<nullptr_t>();
-                }
-
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
-                }
-                return std::make_optional(nullptr);
-            }
-            else {
-                std::vector<child_return_type> results;
-                auto first_result = child_parser.parse_impl(stream,global_state,state);
-                if (!first_result) {
-                    this->error_handle_recovery(stream);
-                    return std::optional<std::vector<child_return_type>>();
-                }
+            if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
                 results.push_back(std::move(*first_result));
 
-                while (!stream.Eof() && child_parser.peek_impl(stream)) {
-                    auto result = child_parser.parse_impl(stream,global_state,state);
-                    if (!result) {
-                        this->error_handle_recovery(stream);
-                        break;
-                    }
-                    results.push_back(std::move(*result));
+            while (!stream.Eof() && child_parser.peek_impl(stream)) {
+                auto result = child_parser.parse_impl(stream, global_state, state);
+                if (!result) {
+                    this->error_handle_recovery(stream);
+                    break;
                 }
-                return std::make_optional(std::move(results));
+                if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
+                    results.push_back(std::move(*result));
             }
+            return std::make_optional(std::move(results));
+
         }
 
         template<typename Stream>
@@ -836,101 +799,6 @@ namespace pkuyo::parsers {
         Predicate predicate;
     };
 
-    template<typename token_type,typename buff_type,size_t buff_size>
-    class parser_buff_seq_check : public base_parser<token_type,parser_buff_seq_check<token_type,buff_type,buff_size>> {
-    public:
-        constexpr parser_buff_seq_check(const buff_type (&input)[buff_size]) {
-            std::copy_n(input,buff_size,cmp);
-        }
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            if(!this->peek_impl(stream)) {
-                this->error_handle_recovery(stream);
-                return std::optional<nullptr_t>();
-            }
-            stream.Seek(real_size);
-            return std::make_optional(nullptr);
-        }
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            for(int i = 0; i< real_size;i++) {
-                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
-
-        buff_type cmp[buff_size]{};
-    };
-
-    template<typename token_type,typename return_type,typename buff_type,size_t buff_size,typename FF>
-    class parser_buff_seq_value : public base_parser<token_type,parser_buff_seq_value<token_type,return_type,buff_type,buff_size,FF>> {
-    public:
-        constexpr parser_buff_seq_value(const buff_type (&input)[buff_size], FF constructor) : constructor(constructor) {
-            std::copy_n(input,buff_size,cmp);
-        }
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            if(!this->peek_impl(stream)) {
-                this->error_handle_recovery(stream);
-                return std::optional<return_type>();
-            }
-            stream.Seek(real_size);
-            return std::make_optional(constructor(cmp));
-        }
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            for(int i = 0; i< real_size;i++) {
-                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        buff_type cmp[buff_size]{};
-
-        static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
-
-        FF constructor;
-    };
-
-    template<typename token_type,typename return_type,typename buff_type,size_t buff_size,typename FF>
-    class parser_buff_seq_ptr : public base_parser<token_type,parser_buff_seq_ptr<token_type,return_type,buff_type,buff_size,FF>> {
-    public:
-        constexpr parser_buff_seq_ptr(const buff_type (&input)[buff_size], FF constructor) : constructor(constructor) {
-            std::copy_n(input,buff_size,cmp);
-        }
-
-        template<typename Stream, typename GlobalState, typename State>
-        auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            if(!this->peek_impl(stream)) {
-                this->error_handle_recovery(stream);
-                return std::optional<std::unique_ptr<return_type>>();
-            }
-            stream.Seek(real_size);
-            return std::make_optional(constructor(cmp));
-
-        }
-        template<typename Stream>
-        bool peek_impl(Stream & stream) const {
-            for(int i = 0; i< real_size;i++) {
-                if(stream.Eof(i) || stream.Peek(i) != cmp[i]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        buff_type cmp[buff_size]{};
-
-        static constexpr size_t real_size = (std::is_same_v<buff_type,char> || std::is_same_v<buff_type,wchar_t>) ? buff_size-1 : buff_size;
-
-        FF constructor;
-    };
 
     template<typename Parser, typename State>
     class state_parser : public base_parser<typename Parser::token_t, state_parser<Parser, State>> {
@@ -1021,7 +889,7 @@ namespace pkuyo::parsers {
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto SingleValue(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return return_type(s); };
-        return parser_value<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_single<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
@@ -1029,31 +897,31 @@ namespace pkuyo::parsers {
     requires std::__weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto SinglePtr(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return std::make_unique<return_type>(s); };
-        return parser_ptr<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_single<token_type,std::unique_ptr<return_type>,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
     constexpr auto SingleValue(cmp_type && cmp_value, FF constructor) {
-        return parser_value<token_type,return_type,cmp_type, FF>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_single<token_type,return_type,cmp_type, FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type,typename FF>
     constexpr auto SinglePtr(cmp_type && cmp_value,FF constructor) {
-        return parser_ptr<token_type,return_type,cmp_type,FF>(std::forward<cmp_type>(cmp_value),constructor);
+        return parser_single<token_type,std::unique_ptr<return_type>,cmp_type,FF>(std::forward<cmp_type>(cmp_value),constructor);
     }
 
 
     template<typename token_type,typename return_type = token_type, typename FF>
     requires (!std::__weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SingleValue(FF compare_func) {
-        return parser_value_with_func<token_type, return_type,FF>(compare_func);
+        return parser_with_func<token_type, return_type,FF>(compare_func);
     }
 
     template<typename token_type,typename return_type, typename FF>
     requires (!std::__weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SinglePtr(FF compare_func) {
-        return parser_ptr_with_func<token_type, return_type,FF>(compare_func);
+        return parser_with_func<token_type,std::unique_ptr<return_type>,FF>(compare_func);
     }
 
     template<typename token_type, typename cmp_type, size_t size>
@@ -1070,7 +938,7 @@ namespace pkuyo::parsers {
     template<typename token_type,typename return_type, typename cmp_type, size_t size>
     constexpr auto SeqPtr(const cmp_type (&cmp)[size]) {
         constexpr auto constructor = [](const cmp_type (&s)[size]) { return std::make_unique<return_type>(s); };
-        return parser_buff_seq_ptr<token_type,return_type, cmp_type,size, decltype(constructor)>(cmp,constructor);
+        return parser_buff_seq_ptr<token_type,std::unique_ptr<return_type>, cmp_type,size, decltype(constructor)>(cmp,constructor);
     }
 
     template<typename token_type,typename return_type,typename FF, typename cmp_type, size_t size>

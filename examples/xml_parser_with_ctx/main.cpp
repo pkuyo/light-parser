@@ -13,7 +13,6 @@
 #include "xml_def.h"
 
 
-
 namespace xml {
 
 
@@ -68,7 +67,7 @@ namespace xml {
 
 
 // space
-    constexpr auto skip_space = *-SingleValue<char>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
+    constexpr auto skip_space = -*SingleValue<char>([](auto &&c) { return c == '\n' || c == '\r' || c == ' '; });
 
 
     struct lazy_element;
