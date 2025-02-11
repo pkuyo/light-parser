@@ -87,7 +87,7 @@ namespace xml {
     constexpr auto text = Until<char>('<').Name("text");
 
     constexpr auto node =
-           ((text >>= [](const string &str, XmlStack &ctx) {
+           ((text >>= [](const auto &str, auto &ctx) {
                     ctx.top()->children.emplace_back(str);
                 return nullptr;
             }) | Lazy<char, lazy_element>()).Name("node");
@@ -95,7 +95,7 @@ namespace xml {
     constexpr auto content = (skip_space >> *node >> skip_space).Name("content");
 
     constexpr auto open_tag = (open_tag_check()
-            >> (tag_name >>= [](const string & str, XmlStack & ctx){
+            >> (tag_name >>= [](const auto & str, auto & ctx){
 
                 auto new_element = make_shared<Element>(str);
                 if(!ctx.empty())
@@ -106,7 +106,7 @@ namespace xml {
             >> skip_space >> attributes).Name("open_tag");
 
     constexpr auto close_tag = ("</"
-            >> -(tag_name && [](const string & str, XmlStack & ctx) {
+            >> -(tag_name && [](const auto & str,auto & ctx) {
                 auto result = ctx.top()->tag_name == str;
                 if(ctx.size() != 1)
                     ctx.pop();
@@ -116,7 +116,7 @@ namespace xml {
 
     constexpr auto element = (open_tag >>
             (
-                (SeqCheck<char>("/>" )  <<= [](nullptr_t,XmlStack & ctx) { ctx.pop();}) |
+                (SeqCheck<char>("/>" )  <<= [](auto,auto & ctx) { ctx.pop();}) |
                 '>' >> content >> close_tag
             )
             >> skip_space).Name("element");

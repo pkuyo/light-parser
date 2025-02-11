@@ -256,19 +256,29 @@ TEST_F(ParserTest, OptionalSingleParser) {
     EXPECT_EQ(stream.Peek(), "any");
 }
 
-TEST_F(ParserTest, MapParser) {
-    auto num = SingleValue<TestToken,std::string,int>("num", [](const TestToken &t) {
-        return 1;
-    });
-    auto parser = num >>= ([](int v) { return v * 1.5; });
+TEST_F(ParserTest, WhereParser) {
+    constexpr auto num = +SingleValue<char>(isdigit) >>= [](auto && t) {return std::stoi(t);};
+    constexpr auto parser = num && [](auto && re) {return re == 10;};
 
-    std::vector<TestToken> tokens = {{"num"}};
-    auto stream = ContainerStream(tokens);
+
+    string_stream stream("10");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(*result, 1.5);
+
+    string_stream stream2("11");
+    EXPECT_THROW(parser.Parse(stream2), parser_exception);
+
 }
 
+TEST_F(ParserTest, MapParser) {
+    constexpr auto num = +SingleValue<char>(isdigit) >>= [](auto && t) {return std::stoi(t);};
+    constexpr auto parser = num >>= [](auto t) {return t*1.5;};
+
+    string_stream stream("10");
+    auto result = parser.Parse(stream);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_DOUBLE_EQ(*result, 15);
+}
 
 
 TEST_F(ParserTest, NotParser) {
@@ -289,7 +299,7 @@ TEST_F(ParserTest, NotParser) {
 
 TEST_F(ParserTest, StringParser) {
 
-    auto parser = (Str<char>("key") | Str<char>("word")) >> "::" >>  Until<char>(';');
+    constexpr auto parser = (Str<char>("key") | Str<char>("word")) >> "::" >>  Until<char>(';');
     string_stream tokens("key::end;");
 
     auto result = parser.Parse(tokens);

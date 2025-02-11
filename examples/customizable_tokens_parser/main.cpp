@@ -48,7 +48,7 @@ namespace json {
 
     auto l_value = Lazy<Token,lazy_value>().Name("Value");
 
-    auto elements = ( (l_value >> *(comma >> l_value)) >>= [](tuple<unique_ptr<AstNode>,vector<unique_ptr<AstNode>>> &&t) {
+    auto elements = ( (l_value >> *(comma >> l_value)) >>= [](auto &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
@@ -56,23 +56,23 @@ namespace json {
 
 
     auto array = ( (TokenType::LBRACKET >> ~elements >>TokenType::RBRACKET) >>=
-                           [](optional<vector<unique_ptr<AstNode>>> &&t) {
+                           [](auto &&t) {
                                if (!t) return make_unique<ArrayNode>(vector<unique_ptr<AstNode>>());
                                return make_unique<ArrayNode>(std::move(t.value()));
                            }).Name("Array");
 
 
-    auto pair =( (str >> TokenType::COLON >> l_value) >>= [](tuple<unique_ptr<StringNode>,unique_ptr<AstNode>> &&t) {
+    auto pair =( (str >> TokenType::COLON >> l_value) >>= [](auto &&t) {
         return std::make_unique<PairNode>(std::move(std::get<0>(t)), std::move(std::get<1>(t)));
     }).Name("Pair");
 
-    auto members = ((pair >> *(comma >> pair)) >>= [](tuple<unique_ptr<PairNode>,vector<unique_ptr<PairNode>>> &&t) {
+    auto members = ((pair >> *(comma >> pair)) >>= [](auto &&t) {
         auto & [first,values] = t;
         values.emplace_back(std::move(first));
         return std::move(values);
     }).Name("Members");
 
-    auto object = ((TokenType::LBRACE >> ~members >> TokenType::RBRACE ) >>= [](optional<vector<unique_ptr<PairNode>>> &&t) -> unique_ptr<ObjectNode> {
+    auto object = ((TokenType::LBRACE >> ~members >> TokenType::RBRACE ) >>= [](auto &&t)  {
         if (!t) return std::make_unique<ObjectNode>(std::vector<std::unique_ptr<PairNode>>());
         return std::make_unique<ObjectNode>(std::move(t.value()));
     }).Name("Object");

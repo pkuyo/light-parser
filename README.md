@@ -57,6 +57,45 @@ int main() {
 
 ### Advanced Usage
 
+#### Semantic Actions
+```cpp
+using namespace pkuyo::parsers;
+
+// Value transformation 
+constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
+    >>= [](auto val /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
+            { return (val -'0') * 2; };
+
+// Side-effect handling
+constexpr auto LogParser = Check<char>('[')
+    <<= [](auto /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
+            { std::cout << "Start array" << std::endl; };
+```
+
+#### Parsing Context
+
+```cpp
+using namespace pkuyo::parsers;
+
+constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
+    >>= [](auto val ,auto& global_state, auto& state) 
+            {
+                global_state.sum += (val -'0');
+                state.last_value = (val -'0');
+                return (val -'0') * 2; 
+            };
+
+// You can pass a variable as the global context in the second parameter
+YourGlobalState global_stack;
+auto result = parser.Parse(input,global_stack);
+
+
+//The local context will have only one instance per Parse.
+auto with_local_state = WithState<YourLocalState>(/*other parsers*/);
+```
+For context usage scenarios, refer to the examples in the [examples/sax_xml_parser](examples/sax_xml_parser) directory.
+
+
 #### Lazy Parsing
 
 ```cpp
@@ -82,46 +121,6 @@ struct lazy_parser : public base_parser<char,lazy_parser> {
 string_stream input("aab");
 auto result = parser.Parse(input);
 ```
-
-#### Semantic Actions
-```cpp
-using namespace pkuyo::parsers;
-
-// The parameter types of the lambda expression MUST be the exact type names; auto cannot be used.
-
-// Value transformation 
-constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
-    >>= [](char val /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
-            { return (val -'0') * 2; };
-
-// Side-effect handling
-constexpr auto LogParser = Check<char>('[')
-    <<= [](nullptr_t /*,GlobalState& global_state*/ /*,LocalState& global_state*/) 
-            { std::cout << "Start array" << std::endl; };
-```
-
-#### Parsing Context
-
-```cpp
-using namespace pkuyo::parsers;
-
-constexpr auto IntParser = SingleValue<char>([](char c){ return isdigit(c); })
-    >>= [](char val ,YourGlobalState& global_state, YourLocalState& state) 
-            {
-                global_state.sum += (val -'0');
-                state.last_value = (val -'0');
-                return (val -'0') * 2; 
-            };
-
-// You can pass a variable as the global context in the second parameter
-YourGlobalState global_stack;
-auto result = parser.Parse(input,global_stack);
-
-
-//The local context will have only one instance per Parse.
-auto with_local_state = WithState<YourLocalState>(/*other parsers*/);
-```
-For context usage scenarios, refer to the examples in the [examples/sax_xml_parser](examples/sax_xml_parser) directory.
 
 #### Token Stream Implementations
 

@@ -42,7 +42,7 @@ namespace num_parser {
 
     constexpr auto factor = number | (lparen >> Lazy<char,LazyExpr>() >> rparen).Name("factor");
 
-    constexpr auto term =((factor >> *((mul | div) >> factor)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
+    constexpr auto term =((factor >> *((mul | div) >> factor)) >>= [](auto && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '*') result *= num;
@@ -51,7 +51,7 @@ namespace num_parser {
         return result;
     }).Name("term");
 
-    constexpr auto expression = ((term >> *((add | sub) >> term)) >>= [](std::tuple<double,std::vector<std::tuple<char,double>>> && tuple) {
+    constexpr auto expression = ((term >> *((add | sub) >> term)) >>= [](auto && tuple) {
         auto& [result, nums] = tuple;
         for (const auto& [op, num] : nums) {
             if (op== '+') result += num;

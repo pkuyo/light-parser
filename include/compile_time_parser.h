@@ -669,7 +669,6 @@ namespace pkuyo::parsers {
 
 
     // Convert the parsing result to the target type's parser.
-    // No error recovery.
     template<typename child_type, typename FF>
     class parser_map : public base_parser<typename std::decay_t<child_type>::token_t, parser_map<child_type,FF>> {
     public:
@@ -684,20 +683,13 @@ namespace pkuyo::parsers {
 
             using SourceType = parser_result_t<child_type, GlobalState, State>;
 
-            static_assert(std::is_same_v<std::decay_t<GetArg<0,mapper_t>>, SourceType>,
-                          "Mismatched mapper function parameter type at argument 0");
 
-            constexpr int arg_size = std::tuple_size_v<GetArgs<mapper_t>>;
 
             if constexpr (std::is_same_v<State, nullptr_t>) {
 
-                static_assert(arg_size <= 2 && arg_size > 0
-                        , "Parameter count mismatch, expected 1-2.");
 
-                if constexpr (arg_size == 2) {
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
 
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1,mapper_t>>, GlobalState>,
-                            "Mismatched mapper function parameter type at argument 1");
 
                     using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
                                                                          std::declval<std::add_lvalue_reference_t<GlobalState>>()));
@@ -722,20 +714,12 @@ namespace pkuyo::parsers {
             }
             else {
 
-                static_assert(arg_size <= 3 && arg_size > 1
-                        , "Parameter count mismatch, expected 2-3.");
 
-                if constexpr (arg_size == 3) {
 
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1, mapper_t>>, GlobalState>,
-                                  "Mismatched mapper function parameter type at argument 1");
-                    static_assert(base_or_same_v<std::decay_t<GetArg<2, mapper_t>>, State>,
-                                  "Mismatched mapper function parameter type at argument 2");
-
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
                     using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
                                                                          std::declval<std::add_lvalue_reference_t<GlobalState>>(),
                                                                          std::declval<std::add_lvalue_reference_t<State>>()));
-
                     auto source_result = source.parse_impl(stream, global_state, state);
                     if (source_result == std::nullopt) {
                         this->error_handle_recovery(stream);
@@ -744,8 +728,7 @@ namespace pkuyo::parsers {
                     return std::make_optional(std::move(mapper(std::move(source_result.value()),global_state, state)));
                 }
                 else {
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1, mapper_t>>, State>,
-                                  "Mismatched mapper function parameter type at argument 1");
+
                     using TargetType = decltype(std::declval<mapper_t>()(std::declval<SourceType>(),
                                                                          std::declval<std::add_lvalue_reference_t<State>>()));
 
@@ -758,6 +741,7 @@ namespace pkuyo::parsers {
                 }
             }
         }
+
 
         template<typename Stream>
         bool peek_impl(Stream & stream) const {
@@ -773,6 +757,82 @@ namespace pkuyo::parsers {
         mapper_t mapper;
     };
 
+
+    template<typename child_type, typename FF>
+    class parser_action : public base_parser<typename std::decay_t<child_type>::token_t, parser_action<child_type,FF>> {
+    public:
+
+        using action_t = FF;
+
+        constexpr parser_action(const child_type & source, action_t action)
+                : source(source), action(action) {}
+
+        template<typename Stream,typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+
+            using SourceType = parser_result_t<child_type, GlobalState, State>;
+
+            if constexpr (std::is_same_v<State, nullptr_t>) {
+
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
+
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<SourceType>();
+                    }
+                    action(*source_result,global_state);
+                    return source_result;
+                }
+                else {
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<SourceType>();
+                    }
+                    action(*source_result);
+                    return source_result;
+                }
+            }
+            else {
+
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<SourceType>();
+                    }
+                    action(*source_result,global_state, state);
+                    return source_result;
+                }
+                else {
+                    auto source_result = source.parse_impl(stream, global_state, state);
+                    if (source_result == std::nullopt) {
+                        this->error_handle_recovery(stream);
+                        return std::optional<SourceType>();
+                    }
+                    action(*source_result, state);
+                    return source_result;
+                }
+            }
+        }
+
+
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return source.peek_impl(stream);
+        }
+
+
+        void reset_impl() const {
+            source.reset_impl();
+        }
+    private:
+        child_type source;
+        action_t action;
+    };
+
+
     template<typename child_type,typename FF>
     class parser_where : public base_parser<typename std::decay_t<child_type>::token_t, parser_where<child_type,FF>> {
     public:
@@ -784,20 +844,11 @@ namespace pkuyo::parsers {
         template<typename Stream,typename GlobalState, typename State>
         auto parse_impl(Stream& stream,GlobalState& global_state , State& state) const {
             using ReturnType = parser_result_t<child_type,GlobalState,State>;
-            static_assert(std::is_same_v<std::decay_t<GetArg<0, Predicate>>, ReturnType>,
-                          "Mismatched pred function parameter type at argument 0");
-
-            constexpr int arg_size = std::tuple_size_v<GetArgs<Predicate>>;
-
 
             auto result = child_parser.parse_impl(stream,global_state,state);
 
             if constexpr (std::is_same_v<nullptr_t,State>) {
-                static_assert(arg_size <= 2 && arg_size > 0
-                        , "Parameter count mismatch, expected 1-2.");
-                if constexpr (arg_size == 2) {
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1, Predicate>>, GlobalState>,
-                                  "Mismatched pred function parameter type at argument 1");
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
                     if (!result || !predicate(*result,global_state)) {
                         this->error_handle_recovery(stream);
                         return std::optional<ReturnType>();
@@ -812,22 +863,14 @@ namespace pkuyo::parsers {
             }
             else {
 
-                static_assert(arg_size <= 3 && arg_size > 1
-                        , "Parameter count mismatch, expected 2-3.");
 
-                if constexpr (arg_size == 3) {
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1, Predicate>>, GlobalState>,
-                                  "Mismatched pred function parameter type at argument 1");
-                    static_assert(base_or_same_v<std::decay_t<GetArg<2, Predicate>>, State>,
-                                  "Mismatched pred function parameter type at argument 2");
+                if constexpr (!std::is_same_v<GlobalState, nullptr_t>) {
                     if (!result || !predicate(*result, global_state, state)) {
                         this->error_handle_recovery(stream);
                         return std::optional<ReturnType>();
                     }
                 }
                 else {
-                    static_assert(base_or_same_v<std::decay_t<GetArg<1, Predicate>>, State>,
-                                  "Mismatched pred function parameter type at argument 1");
                     if (!result || !predicate(*result, state)) {
                         this->error_handle_recovery(stream);
                         return std::optional<ReturnType>();
@@ -929,8 +972,8 @@ namespace pkuyo::parsers {
 
     template<typename token_type, typename FF>
     requires (!std::__weakly_equality_comparable_with<token_type, FF>)
-    constexpr auto Check(FF &&cmp) {
-        return parser_check_with_func<token_type, FF>(std::forward<FF>(cmp));
+    constexpr auto Check(FF &&cmp_func) {
+        return parser_check_with_func<token_type, FF>(std::forward<FF>(cmp_func));
     }
 
     template<typename token_type, typename cmp_type = token_type>
@@ -939,8 +982,13 @@ namespace pkuyo::parsers {
         return parser_until<token_type, cmp_type>(std::forward<cmp_type>(cmp));
     }
 
+    template<typename token_type, typename FF>
+    constexpr auto Until(FF &&cmp_func) {
+        return parser_until_with_func<token_type, FF>(std::forward<FF>(cmp_func));
+    }
+
     template<typename token_type,size_t size>
-    auto Str(const token_type (&str)[size]) {
+    constexpr auto Str(const token_type (&str)[size]) {
         return parser_str<token_type,size>(str);
     }
 
@@ -1054,6 +1102,13 @@ namespace pkuyo::parsers {
     constexpr auto Map(child_type && child, FF && mapper) {
         return parser_map<std::remove_reference_t<child_type>, std::remove_reference_t<FF>>
                                                                                          (std::forward<child_type>(child),std::forward<FF>(mapper));
+    }
+
+    template<typename child_type, typename FF>
+    requires is_parser<child_type>
+    constexpr auto Action(child_type && child, FF && action) {
+        return parser_action<std::remove_reference_t<child_type>, std::remove_reference_t<FF>>
+        (std::forward<child_type>(child),std::forward<FF>(action));
     }
 
     template<typename child_type, typename FF>
@@ -1222,24 +1277,17 @@ namespace pkuyo::parsers {
     template <typename parser_type,typename Mapper>
     requires is_parser<parser_type>
     constexpr auto operator>>=(parser_type && parser, Mapper&& mapper) {
-        return Map(std::forward<parser_type>(parser),mapper);
+        return Map(std::forward<parser_type>(parser),std::forward<Mapper>(mapper));
     }
 
-    template <typename Action,size_t ...N>
-    constexpr auto semantic_action_impl(Action&& action,std::index_sequence<N...>) {
-        return [action = std::forward<Action>(action)](GetArg<0,Action>&& self, GetArg<N+1,Action>&&... val) {
-            action(self,val...);
-            return self; // return original value
-        };
-    }
 
     // Overloads '<<=' for semantic action injection, retaining the original return value.
-    template <typename parser_type,typename Action>
+    template <typename parser_type,typename action>
     requires is_parser<parser_type>
-    constexpr auto operator<<=(const parser_type & parser,Action&& action) {
-        return Map(
-                parser,
-                semantic_action_impl(std::forward<Action>(action),std::make_index_sequence<std::tuple_size_v<GetArgs<Action>>-1>())
+    constexpr auto operator<<=(parser_type && parser,action&& func) {
+        return Action(
+                std::forward<parser_type>(parser),
+                std::forward<action>(func)
         );
     }
 

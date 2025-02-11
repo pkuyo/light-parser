@@ -57,21 +57,21 @@ namespace xml_sax {
 
 
     constexpr auto attributes = *(attribute >> whitespace)
-            >>= [](vector<tuple<string,string>>&& attrs,SAXHandler&, tag_state&) {
+            >>= [](auto&& attrs,auto&, auto&) {
                     map<string, string> map;
                     for (auto& [k, v] : attrs) map[k] = v;
                     return map;
                 };
 
     constexpr auto self_close = SeqCheck<char>("/>").Name("self_close")
-            >>= [](nullptr_t , SAXHandler& handler, tag_state & self_close_state)  {
+            >>= [](auto , auto& handler, auto & self_close_state)  {
                     handler.endElement(self_close_state.name);
                     return nullptr;
                 };
 
 
     constexpr auto open_tag = ((open_tag_check() >> name >> whitespace >> attributes).Name("open_tag")
-            >>= [](tuple<string,map<string, string>>&& tuple,SAXHandler& handler,tag_state & self_close_state) {
+            >>= [](auto&& tuple,auto& handler,auto & self_close_state) {
                     auto& [name, attrs] = tuple;
                     self_close_state.name = name;
                     handler.startElement(name, attrs);
@@ -80,7 +80,7 @@ namespace xml_sax {
 
 
     constexpr auto close_tag = ("</" >> name >> ">").Name("close_tag")
-            >>= [](string&& name,SAXHandler& handler,tag_state &) {
+            >>= [](auto&& name,auto& handler,auto &) {
                     handler.endElement(name);
                     return nullptr;
                 };
@@ -88,7 +88,7 @@ namespace xml_sax {
 
 
     constexpr auto content = Until<char>('<').Name("content")
-            >>= [](string&& content,SAXHandler& handler, tag_state state) {
+            >>= [](auto&& content,auto& handler, auto state) {
                     handler.characters(content);
                     return nullptr;
                 };
