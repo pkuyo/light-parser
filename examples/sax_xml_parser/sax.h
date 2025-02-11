@@ -93,7 +93,11 @@ namespace xml_sax {
                     return nullptr;
                 };
 
-    constexpr auto node = (Lazy<char,lazy_element>() | content) >> whitespace;
+    constexpr auto node = TryCatch(
+              Lazy<char,lazy_element>() | content,
+            Sync<char>('<'),
+            [](auto&& ex, auto && handler) {handler.error(ex.what());}
+            ) >> whitespace;
 
     constexpr auto element = WithState<tag_state>(open_tag >> ('>' >> whitespace >> *node >> close_tag | self_close));
 
@@ -112,13 +116,8 @@ namespace xml_sax {
     requires is_base_of_v<SAXHandler,Handler>
     void parse(Stream& stream, Handler& handler) {
 
-        try {
-            if (!root.Parse(stream, handler).has_value()) {
-                handler.error("Invalid XML document");
-            }
-        }
-        catch(const parser_exception & ex) {
-            handler.error(ex.what());
+        if (!root.Parse(stream, handler).has_value()) {
+            handler.error("Invalid XML document");
         }
     }
 

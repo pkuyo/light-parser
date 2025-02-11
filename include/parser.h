@@ -4,7 +4,7 @@
  * @brief Main entry point for the lightweight parser library, integrating compile-time and runtime components.
  * @author pkuyo
  * @date 2025-02-08
- * @version 0.2.2
+ * @version 0.2.4
  * @copyright Copyright (c) 2025 pkuyo. All rights reserved.
  *
  * Key components:
@@ -12,7 +12,7 @@
  * - Error handling mechanisms error_handler.h
  * - Runtime parsers runtime_parser.h
  * - Compile-time parsers compiler_time_parser.h
- * @warning This is a testing version; APIs may change.
+ * 
  */
 
 #ifndef LIGHT_PARSER_PARSER_H

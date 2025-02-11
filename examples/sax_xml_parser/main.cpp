@@ -40,7 +40,7 @@ int main() {
                 <name>John Doe</name>
                 <email>john@example.com</email>
             </author>
-            <<price currency="USD">59.99</price>
+            <<pricecurrency="USD">59.99</price>
         </book>
     )","wrong");
 

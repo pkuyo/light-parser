@@ -13,8 +13,9 @@ LightParser is a lightweight parser combinator library based on C++20, designed 
 - **Lazy Parsing**: Supports lazy initialization for recursive parser definitions.
 - **Compile-Time Construction**: Syntax parsers can be constructed at compile-time, enabling efficient and optimized parsing logic without runtime overhead.
 - **Customizable Parsers**: Create parsers that return custom types, including smart pointers and user-defined types.
-- **Panic Mode Recovery**: Provides a mechanism for recovering from parsing errors by synchronizing to a known point in the input.
 - **Header-Only Library with Zero Dependencies**: The library is entirely header-based, ensuring portability across platforms and build systems.
+- **Custom Exception Handling**: Utilize TryCatch, Sync, or custom Parser to handle parsing errors, offering flexibility for various parsing scenarios and enhancing fault tolerance.
+
 
 ## Getting Started
 
@@ -142,7 +143,7 @@ file_stream input("example.txt");
 
 #### Error Handling
 
-Custom error handling
+**Custom error handling**
 ```cpp
 parser_error_handler<YourToken>::DefaultOnError([](auto & parser, 
         auto && token, auto & token_value, auto & token_pos, auto & stream_name) {
@@ -154,22 +155,31 @@ parser_error_handler<YourToken>::DefaultOnError([](auto & parser,
     }
 });
 
-// Set panic mode recovery points
-parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
-    return c == ';';  // Recover parsing at semicolons
-});
-
 //Set error handling for a specific parser.
-auto parser = (....).OnError(....).OnRecovery(...);
+auto parser = (....).OnError(....);
 ```
-Try-Catch parser
+**Try-Catch parser**
 ```cpp
-auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"));
+auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"),[] (auto&& exception, auto && gloabl_state) {
+    std::err << exception.what() << "\n";
+});
 string_stream tokens("com-Recovery");
 
 //If matching fails, it attempts to re-match using recovery.
 auto result = parser.Parse(tokens);
 // *result == "com-Recovery"
+```
+
+**Sync-Point parser**
+```cpp
+auto parser = TryCatch(Str("head"),Sync('<'),[] (auto&& exception, auto && gloabl_state) {
+    std::err << exception.what() << "\n";
+}) >> Str("<com>");
+
+string_stream tokens("no<com>");
+//If matching fails, it attempts to re-match at first token that matched '<'.
+auto result = parser.Parse(tokens);
+// *result == "<com>"
 ```
 
 ### Examples
@@ -179,21 +189,20 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 
 ### Global Method
 
-| Method              | Description                                                                                               |
-|---------------------|-----------------------------------------------------------------------------------------------------------|
-| `Check()`           | Create a parser only check single token                                                                   |
-| `SeqCheck()`        | Create a parser only check multi tokens                                                                   |
-| `Str()`             | Create a string-matching parser                                                                           |
-| `Until()`           | Create a parser stop at certain token                                                                     |
-| `TryCatch()`        | Create a parser that Use a recovery parser instead of a child parser when an error occurs during parsing. |
-| `SingleValue()`     | Create a value parser                                                                                     |
-| `SinglePtr()`       | Create a value parser (return unique_ptr<>)                                                               |
-| `SeqValue()`        | Create a multi-value parser                                                                               |
-| `SeqPtr()`          | Create a multi-value parser (return unique_ptr<>)                                                         |
-| `WithState()`       | Create a  parser with a local state                                                                       |
-| `DefaultOnError()`  | Sets a default error handler for all parsers                                                              |
-| `DefaultRecovery()` | Sets a default panic mode recovery function                                                               |
-
+| Method             | Description                                                                                               |
+|--------------------|-----------------------------------------------------------------------------------------------------------|
+| `Check()`          | Create a parser only check single token                                                                   |
+| `SeqCheck()`       | Create a parser only check multi tokens                                                                   |
+| `Str()`            | Create a string-matching parser                                                                           |
+| `Until()`          | Create a parser stop at certain token                                                                     |
+| `TryCatch()`       | Create a parser that Use a recovery parser instead of a child parser when an error occurs during parsing. |
+| `Sync()`           | Create a parser that read token until sync_func or cmp matched.                                           |
+| `SingleValue()`    | Create a value parser                                                                                     |
+| `SinglePtr()`      | Create a value parser (return unique_ptr<>)                                                               |
+| `SeqValue()`       | Create a multi-value parser                                                                               |
+| `SeqPtr()`         | Create a multi-value parser (return unique_ptr<>)                                                         |
+| `WithState()`      | Create a  parser with a local state                                                                       |
+| `DefaultOnError()` | Sets a default error handler for all parsers                                                              |
 ### base_parser
 base_parser class used for constructing parser combinators and actual expression parsing.
 
@@ -211,7 +220,6 @@ base_parser class used for constructing parser combinators and actual expression
 | `-`               | Create a parser ignore original result and return `nullptr`                                 |
 | `&&`              | Creates a parser_where to filter results.                                                   |
 | `OnError()`       | Sets a error handler for parsers                                                            |               
-| `OnRecovery()`    | Sets a panic mode recovery function.                                                        |
 | `Name()`          | Sets an alias for parser.                                                                   |
 
 ## Contributing

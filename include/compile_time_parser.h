@@ -927,21 +927,26 @@ namespace pkuyo::parsers {
         Parser parser;
     };
 
-    template<typename Parser, typename Recovery>
-    class try_catch_parser : public base_parser<typename Parser::token_t, try_catch_parser<Parser, Recovery>> {
+    template<typename Parser, typename OnError, typename Recovery>
+    class try_catch_parser : public base_parser<typename Parser::token_t, try_catch_parser<Parser, OnError, Recovery>> {
     public:
-        constexpr try_catch_parser(Parser&& parser, Recovery&& recovery)
-                : parser(std::forward<Parser>(parser.OnRecovery([](auto) {return true;}))),
-                recovery(std::forward<Recovery>(recovery)) {}
+        constexpr try_catch_parser(Parser&& parser, OnError&& on_error, Recovery&& recovery)
+                : parser(std::forward<Parser>(parser)),
+                  on_error(std::forward<OnError>(on_error)),
+                  recovery(std::forward<Recovery>(recovery)) {}
 
         template<typename Stream, typename GlobalState, typename State>
         auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
-            if(!parser.peek_impl(stream))
-                return recovery.parse_impl(stream,global_state,state);
+            if (!parser.peek_impl(stream)) {
+                return recovery.parse_impl(stream, global_state, state);
+            }
+
             try {
-                return parser.parse_impl(stream,global_state,state);
-            } catch (const parser_exception&) {
-                return recovery.parse_impl(stream,global_state,state);
+                return parser.parse_impl(stream, global_state, state);
+            } catch (const parser_exception& ex) {
+
+                on_error(ex, global_state);
+                return recovery.parse_impl(stream, global_state, state);
             }
         }
 
@@ -954,12 +959,40 @@ namespace pkuyo::parsers {
             parser.reset_impl();
             recovery.reset_impl();
         }
+
     private:
         Parser parser;
+        OnError on_error;
         Recovery recovery;
     };
 
+    template <typename token_type,bool is_after_this,typename FF,typename return_type = nullptr_t>
+    class sync_point_recovery_parser : public base_parser<token_type,sync_point_recovery_parser<token_type,is_after_this,FF,return_type>> {
+    public:
+        constexpr sync_point_recovery_parser(FF && _sync_func) : sync_func(_sync_func) {}
 
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState&, State&) const {
+            while(!sync_func(stream.Peek()))
+                stream.Seek(1);
+
+            if constexpr (is_after_this)
+                stream.Seek(1);
+
+            if (std::is_same_v<return_type,nullptr_t>)
+                return std::make_optional(nullptr);
+            else
+                return std::optional<return_type>(return_type());
+        }
+
+        template<typename Stream>
+        bool peek_impl(Stream&) const {
+            return true;
+        }
+
+    private:
+        FF sync_func;
+    };
 }
 
 namespace pkuyo::parsers {
@@ -1141,13 +1174,38 @@ namespace pkuyo::parsers {
         return state_parser<Parser, State>(std::forward<Parser>(parser));
     }
 
+
     template<typename Parser, typename Recovery>
     constexpr auto TryCatch(Parser&& parser, Recovery&& recovery) {
-        return try_catch_parser<Parser, Recovery>(
-                std::forward<Parser>(parser), std::forward<Recovery>(recovery)
+        auto on_error = [](auto &&,auto &&) {};
+        return try_catch_parser<Parser, decltype(on_error), Recovery>(
+                std::forward<Parser>(parser),
+                std::move(on_error),
+                std::forward<Recovery>(recovery)
         );
     }
 
+    template<typename Parser, typename OnError, typename Recovery>
+    constexpr auto TryCatch(Parser&& parser, Recovery&& recovery,OnError&& on_error) {
+        return try_catch_parser<Parser, OnError, Recovery>(
+                std::forward<Parser>(parser),
+                std::forward<OnError>(on_error),
+                std::forward<Recovery>(recovery)
+        );
+    }
+
+    template<typename token_type,typename FF,bool is_after_this = false, typename return_type = nullptr_t>
+    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
+    constexpr auto Sync(FF&& sync_func) {
+        return sync_point_recovery_parser<token_type,is_after_this,FF,return_type>(std::forward<FF>(sync_func));
+    }
+
+    template<typename token_type,bool is_after_this = false,typename cmp_type = token_type, typename return_type = nullptr_t>
+    requires (std::__weakly_equality_comparable_with<token_type, cmp_type>)
+    constexpr auto Sync(token_type&& sync_point) {
+        auto ff = [=](const token_type& token) {return token == sync_point;};
+        return sync_point_recovery_parser<token_type,is_after_this, decltype(ff),return_type>(std::move(ff));
+    }
 }
 
 namespace pkuyo::parsers {

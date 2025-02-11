@@ -31,11 +31,7 @@ struct TestToken {
 
 class ParserTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        parser_error_handler<TestToken>::DefaultRecovery(panic_mode_recovery<TestToken>([](const TestToken &t) {
-            return t.value == ";"; // set sync pos
-        }));
-    }
+    void SetUp() override {}
 
 };
 
@@ -204,27 +200,7 @@ TEST_F(ParserTest, MoreParser) {
     EXPECT_THROW(parser.Parse(invalid_stream), parser_exception);
 }
 
-TEST_F(ParserTest, ErrorRecovery) {
-    auto parser = Check<TestToken>("expected").Name("ErrorTest");
-    std::vector<TestToken> tokens = {{"unexpected"},
-                                     {";"},
-                                     {"valid"}};
 
-    auto stream = ContainerStream(tokens);
-    EXPECT_THROW(parser.Parse(stream), parser_exception);
-    EXPECT_EQ(stream.Peek().value, ";");
-}
-
-//TEST_F(ParserTest, LazyParser) {
-//    auto expr = builder.Lazy([this]() {
-//        return builder.Empty().Get();
-//    }).Name("LazyTest");
-//
-//
-//    std::vector<TestToken> tokens = {{"any"}};
-//    auto it = tokens.cbegin();
-//    EXPECT_TRUE(expr->Parse(it, tokens.cend()).has_value());
-//}
 
 TEST_F(ParserTest, OptionalCheckParser) {
     auto expr = ~Check<TestToken>("optional");
@@ -319,6 +295,18 @@ TEST_F(ParserTest, TryCatchParser) {
     ASSERT_TRUE(result.has_value());
 
     EXPECT_EQ(*result, "com-Recovery");
+}
+
+TEST_F(ParserTest, ErrorRecovery) {
+    auto parser = TryCatch(Check<TestToken>("expected"),
+            Sync(TestToken(";"))).Name("ErrorTest");
+    std::vector<TestToken> tokens = {{"unexpected"},
+                                     {";"},
+                                     {"valid"}};
+
+    auto stream = ContainerStream(tokens);
+    parser.Parse(stream);
+    EXPECT_EQ(stream.Peek().value, ";");
 }
 
 TEST_F(ParserTest, ComplexExpression) {
