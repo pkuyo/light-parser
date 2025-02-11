@@ -991,23 +991,23 @@ namespace pkuyo::parsers {
     template<typename token_type,typename return_type, typename cmp_type, size_t size>
     constexpr auto SeqValue(const cmp_type (&cmp)[size]) {
         constexpr auto constructor = [](const cmp_type (&s)[size]) { return return_type(s); };
-        return parser_buff_seq_value<token_type,return_type, cmp_type,size, decltype(constructor)>(cmp,constructor);
+        return parser_buff_seq<token_type,return_type, cmp_type,size, decltype(constructor)>(cmp,constructor);
     }
 
     template<typename token_type,typename return_type, typename cmp_type, size_t size>
     constexpr auto SeqPtr(const cmp_type (&cmp)[size]) {
         constexpr auto constructor = [](const cmp_type (&s)[size]) { return std::make_unique<return_type>(s); };
-        return parser_buff_seq_ptr<token_type,std::unique_ptr<return_type>, cmp_type,size, decltype(constructor)>(cmp,constructor);
+        return parser_buff_seq<token_type,std::unique_ptr<return_type>, cmp_type,size, decltype(constructor)>(cmp,constructor);
     }
 
     template<typename token_type,typename return_type,typename FF, typename cmp_type, size_t size>
     constexpr auto SeqValue(const cmp_type (&cmp)[size],FF ff) {
-        return parser_buff_seq_value<token_type,return_type, cmp_type,size, FF>(cmp,ff);
+        return parser_buff_seq<token_type,return_type, cmp_type,size, FF>(cmp,ff);
     }
 
     template<typename token_type,typename return_type,typename FF, typename cmp_type, size_t size>
     constexpr auto SeqPtr(const cmp_type (&cmp)[size], FF ff) {
-        return parser_buff_seq_ptr<token_type,return_type, cmp_type,size, FF>(cmp,ff);
+        return parser_buff_seq<token_type,std::unique_ptr<return_type>, cmp_type,size, FF>(cmp,ff);
     }
 
     template<typename child_type>

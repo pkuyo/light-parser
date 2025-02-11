@@ -92,6 +92,12 @@ namespace pkuyo::parsers {
 
     namespace details
     {
+        template <typename T, typename = void>
+        struct has_operator_call : std::false_type {};
+
+        template <typename T>
+        struct has_operator_call<T, std::void_t<decltype(&T::operator())>> : std::true_type {};
+
         template <typename Ret, typename... Args>
         std::tuple<Args...> getArgs(Ret (*)(Args...));
         template <typename F, typename Ret, typename... Args>
@@ -99,7 +105,16 @@ namespace pkuyo::parsers {
         template <typename F, typename Ret, typename... Args>
         std::tuple<Args...> getArgs(Ret (F::*)(Args...) const);
         template <typename F>
+        requires (has_operator_call<F>::value)
         decltype(getArgs(&std::remove_reference_t<F>::operator())) getArgs(F);
+
+        template <typename T>
+        requires (!has_operator_call<T>::value)
+        auto getArgs(T) {
+            static_assert(false,"Template lambda not instantiated properly");
+            return T();
+        }
+
 
         template <typename Ret, typename... Args>
         Ret getRet(Ret (*)(Args...));
@@ -108,7 +123,14 @@ namespace pkuyo::parsers {
         template <typename F, typename Ret, typename... Args>
         Ret getRet(Ret (F::*)(Args...) const);
 
+        template <typename T>
+        requires (!has_operator_call<T>::value)
+        auto getRet(T) {
+            static_assert(false,"Template lambda not instantiated properly");
+            return T();
+        }
         template <typename F>
+        requires (has_operator_call<F>::value)
         decltype(getRet(&std::remove_reference_t<F>::operator())) getRet(F);
 
 

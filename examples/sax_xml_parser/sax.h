@@ -46,7 +46,7 @@ namespace xml_sax {
         }
     };
 
-    constexpr auto name = (+SingleValue<char>([](char c) {return isalpha(c) || c == '_' || c == ':';}).Name("name_char"))
+    constexpr auto name = +SingleValue<char>([](char c) {return isalpha(c) || c == '_' || c == ':';})
             .Name("name");
 
     constexpr auto whitespace  = *Check<char>([](char c){return isspace(c) ;}).Name("whitespace");
