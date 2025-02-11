@@ -57,38 +57,6 @@ int main() {
 
 ### Advanced Usage
 
-#### Error Handling
-
-Custom error handling
-```cpp
-parser_error_handler<YourToken>::DefaultOnError([](auto & parser, 
-        auto && token, auto & token_value, auto & token_pos, auto & stream_name) {
-    if (token) {
-        std::cerr << std::format("Unexpected {} in parser: {}, at: {}",
-                                 token_value, parser.Name(), token_pos) << std::endl;
-    } else {
-        std::cerr << "Unexpected EOF in parser: " << parser.Name() << std::endl;
-    }
-});
-
-// Set panic mode recovery points
-parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
-    return c == ';';  // Recover parsing at semicolons
-});
-
-//Set error handling for a specific parser.
-auto parser = (....).OnError(....).OnRecovery(...);
-```
-Try-Catch parser
-```cpp
-auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"));
-string_stream tokens("com-Recovery");
-
-//If matching fails, it attempts to re-match using recovery.
-auto result = parser.Parse(tokens);
-// *result == "com-Recovery"
-```
-
 #### Lazy Parsing
 
 ```cpp
@@ -173,7 +141,37 @@ container_stream<std::vector<int>> input(tokens);
 file_stream input("example.txt");
 ```
 
+#### Error Handling
 
+Custom error handling
+```cpp
+parser_error_handler<YourToken>::DefaultOnError([](auto & parser, 
+        auto && token, auto & token_value, auto & token_pos, auto & stream_name) {
+    if (token) {
+        std::cerr << std::format("Unexpected {} in parser: {}, at: {}",
+                                 token_value, parser.Name(), token_pos) << std::endl;
+    } else {
+        std::cerr << "Unexpected EOF in parser: " << parser.Name() << std::endl;
+    }
+});
+
+// Set panic mode recovery points
+parser_error_handler<YourToken>::DefaultRecovery([](const YourToken & c) {
+    return c == ';';  // Recover parsing at semicolons
+});
+
+//Set error handling for a specific parser.
+auto parser = (....).OnError(....).OnRecovery(...);
+```
+Try-Catch parser
+```cpp
+auto parser = TryCatch(Str("com-Try"),Str("com-Recovery"));
+string_stream tokens("com-Recovery");
+
+//If matching fails, it attempts to re-match using recovery.
+auto result = parser.Parse(tokens);
+// *result == "com-Recovery"
+```
 
 ### Examples
 For more complex usage scenarios, refer to the examples in the [examples](examples) directory.
