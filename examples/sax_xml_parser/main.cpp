@@ -32,17 +32,6 @@ public:
 int main() {
     MyHandler handler;
 
-    pkuyo::parsers::string_stream wrong(R"(
-        <book id="123">
-            <title>Modern C++</title>
-            <empty></empty>
-            <author>
-                <name>John Doe</name>
-                <email>john@example.com</email>
-            </author>
-            <<pricecurrency="USD">59.99</price>
-        </book>
-    )","wrong");
 
     pkuyo::parsers::string_stream correct(R"(
         <book id="123">
@@ -55,9 +44,7 @@ int main() {
             <price currency="USD">59.99</price>
         </book>
     )","correct");
-
-    xml_sax::parse(wrong,handler);
-    std::cout << "-----------------------" << std::endl;
+    
     xml_sax::parse(correct,handler);
     return 0;
 }

@@ -1081,7 +1081,7 @@ namespace pkuyo::parsers {
 
         template<typename Stream, typename GlobalState, typename State>
         auto parse_impl(Stream& stream, GlobalState&, State&) const {
-            while(!sync_func(stream.Peek()))
+            while(!sync_func(stream.Peek()) && !stream.Eof())
                 stream.Seek(1);
 
             if constexpr (is_after_this)

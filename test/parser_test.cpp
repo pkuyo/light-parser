@@ -258,8 +258,7 @@ TEST_F(ParserTest, MapParser) {
 
 
 TEST_F(ParserTest, NotParser) {
-
-    auto parser = !Str<char>("No") >> -~Str<char>("No") >> Str<char>("Yes");
+    constexpr auto parser = !Str<char>("No") >> -~Str<char>("No") >> Str<char>("Yes");
     string_stream tokens("Yes");
     string_stream no_tokens("NoYes");
 
@@ -317,32 +316,49 @@ TEST_F(ParserTest, ErrorRecovery) {
     EXPECT_EQ(stream.Peek().value, ";");
 }
 
-TEST_F(ParserTest, ComplexExpression) {
-    auto num = SingleValue<TestToken,std::string,int>("num", [](const TestToken &t) {
-        return 12;
-    });
-    auto add = Check<TestToken>("+");
-    auto mul = Check<TestToken>("*");
+TEST_F(ParserTest, ArithmeticExpression) {
+    constexpr auto number = (+SingleValue<char>(isdigit))
+            >>= [](auto && t) {return std::stoi(t);};
+    constexpr auto op = SingleValue<char>('+') | SingleValue<char>('-');
+    constexpr auto expr = number >> op >> number;
 
-    auto factor = num | (Check<TestToken>("(") >> num >> Check<TestToken>(")"));
-
-    auto term = factor >> *(mul >> factor);
-    auto expr = term >> *(add >> term);
-
-// (5)*3+2
-    std::vector<TestToken> tokens = {
-            {"("},
-            {"num"},
-            {")"},
-            {"*"},
-            {"num"},
-            {"+"},
-            {"num"}
-    };
-    auto stream = ContainerStream(tokens);
+    string_stream stream("123+456");
     auto result = expr.Parse(stream);
+
+    ASSERT_TRUE(result.has_value());
+
+    auto& [n1, re_op, n2] = *result;
+
+    EXPECT_EQ(n1, 123);
+    EXPECT_EQ(re_op, '+');
+    EXPECT_EQ(n2, 456);
+}
+
+TEST_F(ParserTest, JsonStringParser) {
+    constexpr auto json_string = Check<char>('"') >>
+                                        Until<char>('"') >>
+                                        Check<char>('"');
+
+    string_stream stream(R"("hello world")");
+    auto result = json_string.Parse(stream);
+
     EXPECT_TRUE(result.has_value());
-    EXPECT_TRUE(stream.Eof());
+    EXPECT_EQ(*result,"hello world");
+}
+
+TEST_F(ParserTest, FileStreamParsing) {
+    std::ofstream tmp("test.tmp");
+    tmp << "TEST123";
+    tmp.close();
+
+    file_stream stream("test.tmp");
+    auto parser = *SingleValue<char>(isupper);
+
+    auto result = parser.Parse(stream);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "TEST");
+    std::remove("test.tmp");
 }
 
 int main(int argc, char **argv) {

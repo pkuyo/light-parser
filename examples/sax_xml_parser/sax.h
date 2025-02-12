@@ -46,8 +46,13 @@ namespace xml_sax {
         }
     };
 
-    constexpr auto name = +SingleValue<char>([](char c) {return isalpha(c) || c == '_' || c == ':';})
-            .Name("name");
+    constexpr auto name = (SingleValue<char>([](char c) {return isalpha(c) || c == '_' || c == ':';}) >>
+            *SingleValue<char>([](char c) {return isalpha(c) || isdigit(c) || c == '_' || c == ':';}))
+            .Name("name")
+            >>= [](auto && t,auto&,auto&) {
+                    std::get<1>(t).insert(0,1,std::get<0>(t));
+                    return std::get<1>(t);
+                };
 
     constexpr auto whitespace  = *Check<char>([](char c){return isspace(c) ;}).Name("whitespace");
 
@@ -93,13 +98,12 @@ namespace xml_sax {
                     return nullptr;
                 };
 
-    constexpr auto node = TryCatch(
-              Lazy<char,lazy_element>() | content,
-            Sync<char>('<'),
-            [](auto&& ex, auto && handler) {handler.error(ex.what());}
-            ) >> whitespace;
+    constexpr auto node = (Lazy<char,lazy_element>() | content )>> whitespace;
 
-    constexpr auto element = WithState<tag_state>(open_tag >> ('>' >> whitespace >> *node >> close_tag | self_close));
+    constexpr auto element = TryCatch(WithState<tag_state>(open_tag >> ('>' >> whitespace >> *node >> close_tag | self_close)),
+                                      Sync<char>('<'),
+                                      [](auto&& ex, auto && handler) {handler.error(ex.what());}
+                                );
 
     constexpr auto root = whitespace >> *("<?xml" >> -Until<char>('?') >> "?>" >> whitespace) >> element;
 
