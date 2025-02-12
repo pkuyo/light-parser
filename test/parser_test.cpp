@@ -297,6 +297,14 @@ TEST_F(ParserTest, TryCatchParser) {
     EXPECT_EQ(*result, "com-Recovery");
 }
 
+TEST_F(ParserTest, BackTrack) {
+    auto parser = Or_BackTrack(Str("abcdd"),Str("abcce"), Str("abccd"));
+    string_stream tokens("abccd");
+
+    auto result = parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "abccd");
+}
 TEST_F(ParserTest, ErrorRecovery) {
     auto parser = TryCatch(Check<TestToken>("expected"),
             Sync(TestToken(";"))).Name("ErrorTest");
