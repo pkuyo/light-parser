@@ -44,6 +44,13 @@ namespace pkuyo::parsers {
             return !child_parser.peek_impl(stream);
         }
 
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
 
     private:
         child_type child_parser;
@@ -67,7 +74,13 @@ namespace pkuyo::parsers {
         bool peek_impl(Stream & stream) const {
             return child_parser.peek_impl(stream);
         }
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
 
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
 
     private:
         child_type  child_parser;
@@ -92,7 +105,13 @@ namespace pkuyo::parsers {
             return child_parser.peek_impl(stream);
         }
 
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
 
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
     private:
         child_type child_parser;
     };
@@ -126,7 +145,6 @@ namespace pkuyo::parsers {
         bool peek_impl(Stream & stream) const {
             return !stream.Eof() && stream.Peek() == cmp_value;
         }
-
 
     private:
         cmp_type cmp_value;
@@ -463,6 +481,12 @@ namespace pkuyo::parsers {
             children_parsers.second.reset_impl();
         }
 
+
+        void no_error_impl() {
+            children_parsers.first.NoError_Internal();
+            children_parsers.second.NoError_Internal();
+        }
+
     private:
         std::pair<input_type_left,input_type_right> children_parsers;
 
@@ -472,8 +496,8 @@ namespace pkuyo::parsers {
     // A parser that queries and returns the result of the first sub-parser that satisfies the condition.
     // Note that it only predicts one token; backtracking for more than one token will result in a parser_exception.
     // The result_type is either the base class of each sub-parser or std::variant<types...>.
-    template<typename input_type_l,typename input_type_r>
-    class parser_or : public base_parser<typename std::decay_t<input_type_l>::token_t, parser_or<input_type_l,input_type_r>> {
+    template<typename input_type_l,typename input_type_r,bool with_back_track>
+    class parser_or : public base_parser<typename std::decay_t<input_type_l>::token_t, parser_or<input_type_l,input_type_r,with_back_track>> {
     public:
 
         constexpr parser_or(const input_type_l &left,const input_type_r & right) : children_parsers(std::make_pair(left,right)){}
@@ -516,11 +540,65 @@ namespace pkuyo::parsers {
             children_parsers.second.reset_impl();
         }
 
+        void no_error_impl() {
+            children_parsers.first.NoError_Internal();
+            children_parsers.second.NoError_Internal();
+        }
+
     private:
         std::pair<input_type_l,input_type_r> children_parsers;
 
     };
+    template<typename input_type_l,typename input_type_r>
+    class parser_or<input_type_l,input_type_r,true> :
+            public base_parser<typename std::decay_t<input_type_l>::token_t, parser_or<input_type_l,input_type_r,true>> {
+    public:
 
+        constexpr parser_or(const input_type_l &left,const input_type_r & right) : children_parsers(std::make_pair(left,right)){}
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+
+            using result_t = filter_or_t<input_type_l,input_type_r,GlobalState,State>;
+            auto stream_state = stream.Save();
+
+            if(children_parsers.first.peek_impl(stream)) {
+                auto re = children_parsers.first.parse_impl(stream,global_state,state);
+                if(!re) {
+                    stream.Restore(stream_state);
+                }
+                else return std::optional<result_t>(std::move(re.value()));
+            }
+            if(children_parsers.second.peek_impl(stream))  {
+                auto re = children_parsers.second.parse_impl(stream,global_state,state);
+                if(!re) {
+                    stream.Restore(stream_state);
+                    return std::optional<result_t>();
+                }
+                else return std::make_optional<result_t>(std::move(re.value()));
+            }
+        }
+
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return children_parsers.first.peek_impl(stream) || children_parsers.second.peek_impl(stream);
+        }
+
+
+        void reset_impl() const {
+            children_parsers.first.reset_impl();
+            children_parsers.second.reset_impl();
+        }
+
+        void no_error_impl() {
+            children_parsers.first.NoError_Internal();
+            children_parsers.second.NoError_Internal();
+        }
+
+    private:
+        std::pair<input_type_l,input_type_r> children_parsers;
+
+    };
     // Match the child parser 0 or more times, returning std::vector<child_return_type> (std::basic_string<child_return_type> for char or wchar_t).
     template<typename child_type>
     class parser_many : public base_parser<typename std::decay_t<child_type>::token_t,parser_many<child_type>> {
@@ -554,6 +632,10 @@ namespace pkuyo::parsers {
 
         void reset_impl() const {
             child_parser.reset_impl();
+        }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
         }
 
     private:
@@ -604,6 +686,10 @@ namespace pkuyo::parsers {
         void reset_impl() const {
             child_parser.reset_impl();
         }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
     private:
         child_type child_parser;
     };
@@ -638,6 +724,10 @@ namespace pkuyo::parsers {
         }
         void reset_impl() const {
             child_parser.reset_impl();
+        }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
         }
     private:
         child_type child_parser;
@@ -752,6 +842,10 @@ namespace pkuyo::parsers {
         void reset_impl() const {
             source.reset_impl();
         }
+
+        void no_error_impl() {
+            source.NoError_Internal();
+        }
     private:
         child_type source;
         mapper_t mapper;
@@ -823,9 +917,12 @@ namespace pkuyo::parsers {
             return source.peek_impl(stream);
         }
 
-
         void reset_impl() const {
             source.reset_impl();
+        }
+
+        void no_error_impl() {
+            source.NoError_Internal();
         }
     private:
         child_type source;
@@ -890,6 +987,10 @@ namespace pkuyo::parsers {
         void reset_impl() const {
             child_parser.reset_impl();
         }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
     private:
         child_type child_parser;
         Predicate predicate;
@@ -922,6 +1023,10 @@ namespace pkuyo::parsers {
         void reset_impl() const {
             parser.reset_impl();
             factory(true);
+        }
+
+        void no_error_impl() {
+            parser.NoError_Internal();
         }
     private:
         Parser parser;
@@ -959,7 +1064,10 @@ namespace pkuyo::parsers {
             parser.reset_impl();
             recovery.reset_impl();
         }
-
+        void no_error_impl() {
+            parser.NoError_Internal();
+            recovery.NoError_Internal();
+        }
     private:
         Parser parser;
         OnError on_error;
@@ -1154,7 +1262,16 @@ namespace pkuyo::parsers {
     template<typename l,typename r>
     requires std::is_same_v<typename std::remove_reference_t<l>::token_t,typename std::remove_reference_t<r>::token_t> && is_parser<l> && is_parser<r>
     constexpr auto Or(l&& left, r&& right) {
-        return parser_or<std::remove_reference_t<l>,std::remove_reference_t<r>>(std::forward<l>(left),std::forward<r>(right));
+        return parser_or<std::remove_reference_t<l>,std::remove_reference_t<r>,false>(std::forward<l>(left),std::forward<r>(right));
+    }
+    template<typename l,typename r>
+    requires std::is_same_v<typename std::remove_reference_t<l>::token_t,typename std::remove_reference_t<r>::token_t> && is_parser<l> && is_parser<r>
+    constexpr auto Or_BackTrack(l&& left, r&& right) {
+        return parser_or<std::remove_reference_t<l>,std::remove_reference_t<r>,true>(std::forward<l>(left.NoError()),std::forward<r>(right.NoError()));
+    }
+    template<typename l,typename r,typename ...args>
+    constexpr auto Or_BackTrack(l&& left,r&& right, args&&... arg) {
+        return Or_BackTrack(Or_BackTrack(left,right),arg...);
     }
 
     template<typename l,typename r>

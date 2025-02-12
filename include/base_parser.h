@@ -39,6 +39,8 @@ namespace pkuyo::parsers {
         // Handles exception recovery. Invoked on `Parse` errors and may throw `parser_exception`.
         template<typename Stream>
         void error_handle_recovery(Stream & stream) const {
+            if (no_error)
+                return;
             if (!error_handler)     parser_error_handler<token_type>::error_handler(*this,stream.Eof() ?
             std::nullopt : std::make_optional(stream.Peek()),stream.Value(),stream.Pos(),stream.Name());
             else                    error_handler(*this,stream.Eof() ? std::nullopt : std::make_optional(stream.Peek()),
@@ -53,7 +55,7 @@ namespace pkuyo::parsers {
     protected:
 
         parser_error_handler<token_type>::error_handler_t error_handler = nullptr;
-
+        bool no_error = false;
 
     };
 
@@ -72,7 +74,11 @@ namespace pkuyo::parsers {
         constexpr derived_type& OnError(parser_error_handler<token_type>::error_handler_t  error_handler)
         {this->error_handler = error_handler; return static_cast<derived_type&>(*this);}
 
-
+        //Disable the exception handler
+        constexpr derived_type& NoError() {
+            NoError_Internal();
+            return static_cast<derived_type&>(*this);
+        }
         // Predicts if this `parser` can correctly parse the input (single-character lookahead).
         template <typename Stream>
         auto Peek(Stream& stream) const {
@@ -103,9 +109,13 @@ namespace pkuyo::parsers {
 
         void reset_impl() const { }
 
+        void no_error_impl() {}
+
     protected:
 
-
+        void NoError_Internal() {
+            this->no_error = true;
+        }
 
         void Reset() const {
             static_cast<const derived_type&>(*this).reset_impl();

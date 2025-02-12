@@ -62,7 +62,19 @@ namespace pkuyo::parsers {
             return derived().eof_impl(lookahead);
         }
 
+        std::string Pos() {
+            return derived().pos_impl();
+        }
 
+        auto Save() {
+            return derived().save_impl();
+        }
+
+        void Restore(auto&& state) {
+            return derived().restore_impl(state);
+        }
+
+    public:
         std::string Value() {
             if(Eof())
                 return "EOF";
@@ -70,9 +82,7 @@ namespace pkuyo::parsers {
 
         }
 
-        std::string Pos() {
-            return derived().pos_impl();
-        }
+
         std::string_view Name() {
             return name;
         };
@@ -127,6 +137,14 @@ namespace pkuyo::parsers {
             return std::string(1,source[position]);
         }
 
+        auto save_impl() {
+            return position;
+        }
+
+        auto restore_impl(auto&& state) {
+            position = state;
+        }
+
     public:
         explicit basic_string_stream(const std::basic_string<char_type> &str) : source(str) {}
         explicit basic_string_stream(const std::basic_string<char_type> &str,std::string_view _name) : source(str) {
@@ -177,7 +195,13 @@ namespace pkuyo::parsers {
             return value_func(source[position]);
         }
 
+        auto save_impl() {
+            return position;
+        }
 
+        auto restore_impl(auto&& state) {
+            position = state;
+        }
 
     public:
         container_stream(const container_type &vec) : source(vec), value_func([](const value_type &value) -> std::string {
@@ -208,10 +232,17 @@ namespace pkuyo::parsers {
     class file_stream : public base_token_stream<char, file_stream> {
         friend class base_token_stream<char, file_stream>;
 
+        struct snap_shot {
+            std::streampos fstream_pos;
+            long long file_pos;
+            size_t buffer_pos;
+            size_t line;
+            size_t column;
+        };
         std::ifstream file;
         std::deque<char> buffer;
-        size_t position = 0;
-        size_t mark_pos = 0;
+        long long position = 0;
+        long long file_pos = 0;
 
         size_t column = 0;
         size_t line = 1;
@@ -220,7 +251,7 @@ namespace pkuyo::parsers {
 
         char get_char() {
 
-            if (position >= mark_pos + buffer.size()) {
+            if (position >= file_pos + buffer.size()) {
                 const size_t chunk_size = 4096;
                 std::vector<char> temp(chunk_size);
                 file.read(temp.data(), chunk_size);
@@ -238,15 +269,15 @@ namespace pkuyo::parsers {
                 }
             }
 
-            if (position < mark_pos + buffer.size()) {
-                return buffer[position++ - mark_pos];
+            if (position < file_pos + buffer.size()) {
+                return buffer[position++ - file_pos];
             }
 
             return EOF;
         }
 
         void fill_buffer(size_t required) {
-            while (buffer.size() < required + (position - mark_pos) && !file.eof()) {
+            while (buffer.size() < required + (position - file_pos) && !file.eof()) {
                 const size_t chunk_size = 4096;
                 std::vector<char> temp(chunk_size);
                 file.read(temp.data(), chunk_size);
@@ -266,28 +297,28 @@ namespace pkuyo::parsers {
         }
 
         char get_impl() {
-            if (position < mark_pos + buffer.size()) {
-                return buffer[position++ - mark_pos];
+            if (position < file_pos + buffer.size()) {
+                return buffer[position++ - file_pos];
             }
 
             char c = get_char();
             if (c != EOF) {
-                mark_pos = position++;
+                file_pos = position++;
             }
             return c;
         }
 
         char peek_impl(size_t lookahead) {
             fill_buffer(lookahead + 1);
-            if (position + lookahead >= mark_pos + buffer.size()) {
+            if (position + lookahead >= file_pos + buffer.size()) {
                 return EOF;
             }
-            return buffer[position + lookahead - mark_pos];
+            return buffer[position + lookahead - file_pos];
         }
 
         bool eof_impl(size_t lookahead) {
             fill_buffer(lookahead + 1);
-            return position + lookahead >= mark_pos + buffer.size();
+            return position + lookahead >= file_pos + buffer.size();
         }
 
         std::string pos_impl() {
@@ -300,6 +331,32 @@ namespace pkuyo::parsers {
 
         std::string value_impl() {
             return std::string(1, peek_impl(0));
+        }
+
+        snap_shot save_impl() {
+            return {
+                    file.tellg(),
+                    file_pos,
+                    size_t(position - file_pos),
+                    line,
+                    column
+            };
+        }
+        void restore_impl(const snap_shot& state) {
+            if(state.buffer_pos + state.file_pos - file_pos < buffer.size()) {
+                position = file_pos + state.buffer_pos;
+            }
+            else {
+                file.seekg(state.fstream_pos);
+                if (!file.good()) {
+                    throw std::runtime_error("Failed to seek during restore");
+                }
+                buffer.clear();
+                file_pos = state.file_pos;
+                position = file_pos + state.buffer_pos;
+            }
+            line = state.line;
+            column = state.column;
         }
 
     public:
@@ -384,6 +441,15 @@ namespace pkuyo::parsers {
             }
             return std::string(1, mapped_data[position - 1]);
         }
+
+        auto save_impl() {
+            return position;
+        }
+
+        auto restore_impl(auto&& state) {
+            position = state;
+        }
+
 
     public:
         explicit mmap_file_stream(const std::string& filename) {
@@ -512,11 +578,20 @@ namespace pkuyo::parsers {
         }
 
         std::string value_impl() {
-            if (position == 0 || position > file_size) {
+            if (position == 0) {
                 return "";
             }
             return std::string(1, mapped_data[position - 1]);
         }
+
+        auto save_impl() {
+            return position;
+        }
+
+        auto restore_impl(auto&& state) {
+            position = state;
+        }
+
 
     public:
         explicit mmap_file_stream(const std::string &filename) {
