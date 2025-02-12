@@ -35,7 +35,7 @@ struct StringNode : AstNode {
 
 
 struct BoolNode : AstNode {
-    explicit BoolNode(const Token &token) : value(token.type == TokenType::TRUE) {}
+    explicit BoolNode(const Token &token) : value(token.type == TokenType::TRUE_) {}
     void visit(Visitor & visitor) override;
 
     bool value;

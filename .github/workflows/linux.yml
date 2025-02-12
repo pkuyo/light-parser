@@ -1,4 +1,4 @@
-name: CMake Multi-Project CI
+name: linux
 
 on: [push, pull_request]
 
@@ -8,13 +8,17 @@ jobs:
     strategy:
       matrix:
         build-type: [Debug, Release]
-
+        cxx: [g++-13, g++-14, clang++-17, clang++-18]
+    
+    env:
+      CXX: ${{ matrix.cxx }}
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup CMake
-        uses: actions/setup-cmake@v3
+      - name: Install Ninja
+        run: sudo apt-get install ninja-build
 
       - name: Configure
         run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}}

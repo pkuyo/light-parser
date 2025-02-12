@@ -20,9 +20,8 @@
 #include <string>
 #include <vector>
 #include <fstream>
-
-
-
+#include <deque>
+#include <memory>
 
 
 #ifdef IS_WINDOWS
@@ -529,7 +528,7 @@ namespace pkuyo::parsers {
 #else
 
     class mmap_file_stream : public base_token_stream<char, mmap_file_stream> {
-    friend class base_token_stream<char, mmap_file_stream>;
+        friend class base_token_stream<char, mmap_file_stream>;
 
         int fd = -1;
         char* mapped_data = nullptr;

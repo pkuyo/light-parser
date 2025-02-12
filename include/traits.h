@@ -19,8 +19,12 @@
 
 #include <type_traits>
 #include <format>
+#include <cstddef>
+#include <variant>
 #include "token_stream.h"
-
+#ifdef __clang__
+using nullptr_t = std::nullptr_t;
+#endif
 namespace pkuyo::parsers {
 
 
@@ -61,9 +65,9 @@ namespace pkuyo::parsers{
 
     template <typename parser_type,typename g_state_type,typename state_type>
     using parser_result_t = decltype(std::declval<std::decay_t<parser_type>>().Parse(
-        std::declval<std::add_lvalue_reference_t<container_stream<std::vector<typename std::decay_t<parser_type>::token_t>>>>(),
-        std::declval<std::add_lvalue_reference_t<std::decay_t<g_state_type>>>(),
-        std::declval<std::add_lvalue_reference_t<std::decay_t<state_type>>>()))::value_type;
+            std::declval<std::add_lvalue_reference_t<container_stream<std::vector<typename std::decay_t<parser_type>::token_t>>>>(),
+            std::declval<std::add_lvalue_reference_t<std::decay_t<g_state_type>>>(),
+            std::declval<std::add_lvalue_reference_t<std::decay_t<state_type>>>()))::value_type;
 
 
     //parser_then
@@ -137,10 +141,19 @@ namespace pkuyo::parsers{
     template<typename T>
     using result_container_t = std::conditional_t<std::is_same_v<T,nullptr_t>,nullptr_t,
             std::conditional_t<
-            std::is_same_v<T, char> || std::is_same_v<T, wchar_t>,
-            std::basic_string<T>,
-            std::vector<T>
-    >>;
+                    std::is_same_v<T, char> || std::is_same_v<T, wchar_t>,
+                    std::basic_string<T>,
+                    std::vector<T>
+            >>;
+
+    template <class L, class R>
+    concept weakly_equality_comparable_with =
+    requires(std::add_lvalue_reference_t<L> __t, std::add_lvalue_reference_t<R> __u) {
+        { __t == __u };
+        { __t != __u };
+        { __u == __t };
+        { __u != __t };
+    };
 
     template<typename T,typename Y>
     constexpr bool base_or_same_v = std::is_same_v<T,Y> || std::is_base_of_v<T,Y>;

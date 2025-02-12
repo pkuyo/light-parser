@@ -1,0 +1,41 @@
+name: macOS
+
+on: [push, pull_request]
+
+jobs:
+  xcode:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - llvm: 18
+            build_type: Debug
+            os: macos-14
+          - llvm: 18
+            build_type: Release
+            os: macos-14
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Install Dependencies
+        run: |
+          brew update
+          brew install llvm@${{ matrix.llvm }}
+          brew install ninja
+
+      - uses: actions/checkout@v4
+      - name: Configure CMake
+        run: |
+          cmake -S $GITHUB_WORKSPACE -B build \
+            -GNinja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER=$(brew --prefix llvm@${{ matrix.llvm }})/bin/clang++ \
+            -DCMAKE_LINKER=$(brew --prefix llvm@${{ matrix.llvm }})/bin/ld.lld
+
+      - name: Build project
+        run: cmake --build build/ --config ${{ matrix.build_type }}
+
+      - name: Run tests
+        working-directory: build/
+        run: ctest -C ${{ matrix.build_type }} --output-on-failure

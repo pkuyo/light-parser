@@ -210,7 +210,7 @@ namespace pkuyo::parsers {
 
 
     template<typename parser_type_l,typename chr>
-    requires is_parser<parser_type_l> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, std::basic_string_view<chr>>
+    requires is_parser<parser_type_l> && weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, std::basic_string_view<chr>>
     constexpr auto operator|(parser_type_l && left,const chr* str) {
         auto check_parser = Check<typename std::decay_t<parser_type_l>::token_t,std::basic_string_view<chr>>(std::basic_string_view<chr>(str));
         using parser_type_r = decltype(check_parser);
@@ -218,7 +218,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename parser_l,typename chr>
-    requires is_parser<parser_l> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_l>::token_t, std::basic_string_view<chr>>
+    requires is_parser<parser_l> && weakly_equality_comparable_with<typename std::decay_t<parser_l>::token_t, std::basic_string_view<chr>>
     constexpr auto operator>>(parser_l && left,const chr* str) {
         auto check_parser = Check<typename std::decay_t<parser_l>::token_t,std::basic_string_view<chr>>(std::basic_string_view<chr>(str));
         using parser_type_r = decltype(check_parser);
@@ -227,7 +227,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename chr,typename parser_r>
-    requires is_parser<parser_r> && (std::__weakly_equality_comparable_with<typename std::decay_t<parser_r>::token_t, std::basic_string_view<chr>>)
+    requires is_parser<parser_r> && (weakly_equality_comparable_with<typename std::decay_t<parser_r>::token_t, std::basic_string_view<chr>>)
     auto operator>>(const chr* str,parser_r && right) {
         auto check_parser = Check<typename std::decay_t<parser_r>::token_t,std::basic_string_view<chr>>(std::basic_string_view<chr>(str));
         using parser_type_l = decltype(check_parser);
@@ -237,7 +237,7 @@ namespace pkuyo::parsers {
 
 
     template<typename chr,typename parser_type_r>
-    requires is_parser<parser_type_r>  && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, std::basic_string_view<chr>>
+    requires is_parser<parser_type_r>  && weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, std::basic_string_view<chr>>
     auto operator|(const chr* str,parser_type_r && right) {
         auto check_parser = Check<typename std::decay_t<parser_type_r>::token_t,std::basic_string_view<chr>>(std::basic_string_view<chr>(str));
         using parser_type_l = decltype(check_parser);

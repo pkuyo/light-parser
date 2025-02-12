@@ -8,6 +8,7 @@
 #include <utility>
 #include <regex>
 
+
 enum class TokenType {
     LBRACE,    // {
     RBRACE,    // }
@@ -17,11 +18,13 @@ enum class TokenType {
     COMMA,     // ,
     STRING,    // string
     NUMBER,    // number
-    TRUE,      // true
-    FALSE,     // false
+    TRUE_,      // true
+    FALSE_,     // false
     NULL_,     // null
     WHITESPACE // white space
 };
+
+
 
 // token
 struct Token {
@@ -96,8 +99,8 @@ private:
             {TokenType::COMMA,      R"(,)"},           // ,
             {TokenType::STRING,     R"("(?:\\.|[^"\\])*")"}, // string
             {TokenType::NUMBER,     R"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"}, // number
-            {TokenType::TRUE,       R"(true)"},        // true
-            {TokenType::FALSE,      R"(false)"},       // false
+            {TokenType::TRUE_,       R"(true)"},        // true
+            {TokenType::FALSE_,      R"(false)"},       // false
             {TokenType::NULL_,      R"(null)"},        // null
             {TokenType::WHITESPACE, R"(\s+)"}         // 空白字符
     };

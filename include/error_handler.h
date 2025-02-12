@@ -16,9 +16,10 @@
 #ifndef LIGHT_PARSER_ERROR_HANDLER_H
 #define LIGHT_PARSER_ERROR_HANDLER_H
 
-#include<string>
-#include<functional>
-#include<format>
+#include <string>
+#include <functional>
+#include <format>
+#include <optional>
 
 #include"traits.h"
 

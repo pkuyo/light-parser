@@ -1,7 +1,7 @@
 
 # LightParser - A Lightweight C++ Parser-Combinator Library
 
-![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)
+![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)  [![linux](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml)  [![macOS](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml)
 
 LightParser is a lightweight parser combinator library based on C++20, designed using the parser combinator pattern to help developers quickly build flexible recursive descent parsers.
 

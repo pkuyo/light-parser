@@ -36,7 +36,7 @@ namespace json {
     auto str = SinglePtr<Token,TokenType,StringNode>(TokenType::STRING).Name("String");
 
     //bool
-    auto true_false = (SinglePtr<Token,TokenType,BoolNode>(TokenType::FALSE) |SinglePtr<Token,TokenType,BoolNode>(TokenType::TRUE)).Name("Bool");
+    auto true_false = (SinglePtr<Token,TokenType,BoolNode>(TokenType::FALSE_) |SinglePtr<Token,TokenType,BoolNode>(TokenType::TRUE_)).Name("Bool");
 
     auto null = SinglePtr<Token,TokenType,NullNode>(TokenType::NULL_).Name("Null") >>= [](unique_ptr<NullNode> &&t) { return unique_ptr<AstNode>(std::move(t)); };
 

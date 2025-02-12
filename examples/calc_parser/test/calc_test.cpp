@@ -3,7 +3,7 @@
 //
 #include "gtest/gtest.h"
 #include "../calc_parser.h"
-
+#include <cmath>
 using namespace pkuyo::parsers;
 
 class ArithmeticParserTest : public ::testing::Test {
@@ -77,7 +77,6 @@ TEST_F(ArithmeticParserTest, EdgeCases) {
     }
 }
 
-// 主测试函数
 int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

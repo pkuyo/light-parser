@@ -20,6 +20,7 @@
 
 #include "base_parser.h"
 
+
 namespace pkuyo::parsers {
 
 
@@ -121,7 +122,7 @@ namespace pkuyo::parsers {
     //  If the match is successful, it returns 'nullptr_t';
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename cmp_type>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     class parser_check : public base_parser<token_type,parser_check<token_type,cmp_type>>{
     public:
 
@@ -353,7 +354,7 @@ namespace pkuyo::parsers {
     //  If the match is successful, it returns 'return_type‘;
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename return_type, typename cmp_type,typename FF>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     class parser_single : public base_parser<token_type, parser_single<token_type,return_type,cmp_type,FF>> {
 
     public:
@@ -577,6 +578,7 @@ namespace pkuyo::parsers {
                 }
                 else return std::make_optional<result_t>(std::move(re.value()));
             }
+            return std::optional<result_t>();
         }
 
         template<typename Stream>
@@ -750,7 +752,7 @@ namespace pkuyo::parsers {
             return factory().parse_impl(stream,global_state,state);
         }
     private:
-       static real_type& factory() {
+        static real_type& factory() {
             static real_type real;
             return real;
         }
@@ -1106,19 +1108,19 @@ namespace pkuyo::parsers {
 namespace pkuyo::parsers {
 
     template<typename token_type, typename cmp_type = token_type>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto Check(cmp_type &&cmp) {
         return parser_check<token_type, cmp_type>(std::forward<cmp_type>(cmp));
     }
 
     template<typename token_type, typename FF>
-    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
+    requires (!weakly_equality_comparable_with<token_type, FF>)
     constexpr auto Check(FF &&cmp_func) {
         return parser_check_with_func<token_type, FF>(std::forward<FF>(cmp_func));
     }
 
     template<typename token_type, typename cmp_type = token_type>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto Until(cmp_type &&cmp) {
         return parser_until<token_type, cmp_type>(std::forward<cmp_type>(cmp));
     }
@@ -1134,7 +1136,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename token_type, typename cmp_type = token_type,typename return_type = token_type>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto SingleValue(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return return_type(s); };
         return parser_single<token_type,return_type,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
@@ -1142,7 +1144,7 @@ namespace pkuyo::parsers {
 
 
     template<typename token_type, typename cmp_type = token_type, typename return_type = token_type>
-    requires std::__weakly_equality_comparable_with<token_type, cmp_type>
+    requires weakly_equality_comparable_with<token_type, cmp_type>
     constexpr auto SinglePtr(cmp_type && cmp_value) {
         auto constructor = [](const token_type& s) { return std::make_unique<return_type>(s); };
         return parser_single<token_type,std::unique_ptr<return_type>,cmp_type, decltype(constructor)>(std::forward<cmp_type>(cmp_value),constructor);
@@ -1161,13 +1163,13 @@ namespace pkuyo::parsers {
 
 
     template<typename token_type,typename return_type = token_type, typename FF>
-    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
+    requires (!weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SingleValue(FF compare_func) {
         return parser_with_func<token_type, return_type,FF>(compare_func);
     }
 
     template<typename token_type,typename return_type, typename FF>
-    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
+    requires (!weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SinglePtr(FF compare_func) {
         return parser_with_func<token_type,std::unique_ptr<return_type>,FF>(compare_func);
     }
@@ -1242,21 +1244,21 @@ namespace pkuyo::parsers {
     requires is_parser<child_type>
     constexpr auto Map(child_type && child, FF && mapper) {
         return parser_map<std::remove_reference_t<child_type>, std::remove_reference_t<FF>>
-                                                                                         (std::forward<child_type>(child),std::forward<FF>(mapper));
+                (std::forward<child_type>(child),std::forward<FF>(mapper));
     }
 
     template<typename child_type, typename FF>
     requires is_parser<child_type>
     constexpr auto Action(child_type && child, FF && action) {
         return parser_action<std::remove_reference_t<child_type>, std::remove_reference_t<FF>>
-        (std::forward<child_type>(child),std::forward<FF>(action));
+                (std::forward<child_type>(child),std::forward<FF>(action));
     }
 
     template<typename child_type, typename FF>
     requires is_parser<child_type>
     constexpr auto Where(child_type && child, FF && mapper) {
         return parser_where<std::remove_reference_t<child_type>,std::remove_reference_t<FF>>
-                                                                                          (std::forward<child_type>(child),std::forward<FF>(mapper));
+                (std::forward<child_type>(child),std::forward<FF>(mapper));
     }
 
     template<typename l,typename r>
@@ -1312,13 +1314,13 @@ namespace pkuyo::parsers {
     }
 
     template<typename token_type,typename FF,bool is_after_this = false, typename return_type = nullptr_t>
-    requires (!std::__weakly_equality_comparable_with<token_type, FF>)
+    requires (!weakly_equality_comparable_with<token_type, FF>)
     constexpr auto Sync(FF&& sync_func) {
         return sync_point_recovery_parser<token_type,is_after_this,FF,return_type>(std::forward<FF>(sync_func));
     }
 
     template<typename token_type,bool is_after_this = false,typename cmp_type = token_type, typename return_type = nullptr_t>
-    requires (std::__weakly_equality_comparable_with<token_type, cmp_type>)
+    requires (weakly_equality_comparable_with<token_type, cmp_type>)
     constexpr auto Sync(token_type&& sync_point) {
         auto ff = [=](const token_type& token) {return token == sync_point;};
         return sync_point_recovery_parser<token_type,is_after_this, decltype(ff),return_type>(std::move(ff));
@@ -1328,7 +1330,7 @@ namespace pkuyo::parsers {
 namespace pkuyo::parsers {
 
     template<typename chr,typename parser_type_r,size_t size>
-    requires is_parser<parser_type_r> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, chr>
+    requires is_parser<parser_type_r> && weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, chr>
     constexpr auto operator>>(const chr (&str)[size],parser_type_r && right) {
         auto check_parser = SeqCheck<typename std::decay_t<parser_type_r>::token_t,chr,size>(str);
         using parser_type_l = decltype(check_parser);
@@ -1337,7 +1339,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename chr,typename parser_type_r,size_t size>
-    requires is_parser<parser_type_r> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, chr>
+    requires is_parser<parser_type_r> && weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, chr>
     constexpr auto operator|(const chr (&str)[size],parser_type_r && right) {
         auto check_parser = SeqCheck<typename std::decay_t<parser_type_r>::token_t,chr,size>(str);
         using parser_type_l = decltype(check_parser);
@@ -1345,14 +1347,14 @@ namespace pkuyo::parsers {
     }
 
     template<typename parser_type_l,typename chr,size_t size>
-    requires is_parser<parser_type_l> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, chr>
+    requires is_parser<parser_type_l> && weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, chr>
     constexpr auto operator|(parser_type_l && left,const chr (&str)[size]) {
         auto check_parser = SeqCheck<typename std::decay_t<parser_type_l>::token_t,chr,size>(str);
         using parser_type_r = decltype(check_parser);
         return Or<parser_type_l,parser_type_r>(std::forward<parser_type_l>(left),std::forward<parser_type_r>(check_parser));
     }
     template<typename parser_type_l,typename chr,size_t size>
-    requires is_parser<parser_type_l> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, chr>
+    requires is_parser<parser_type_l> && weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, chr>
     constexpr auto operator>>(parser_type_l && left,const chr (&str)[size]) {
         auto check_parser = SeqCheck<typename std::decay_t<parser_type_l>::token_t,chr,size>(str);
         using parser_type_r = decltype(check_parser);
@@ -1370,7 +1372,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename parser_type_l, typename cmp_type>
-    requires is_parser<parser_type_l> &&  std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, cmp_type>
+    requires is_parser<parser_type_l> &&  weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, cmp_type>
     constexpr auto operator|(parser_type_l&& left,cmp_type&& right) {
         auto r = Check<typename std::decay_t<parser_type_l>::token_t,cmp_type>(std::forward<cmp_type>(right));
         using parser_type_r = decltype(r);
@@ -1379,7 +1381,7 @@ namespace pkuyo::parsers {
 
 
     template<typename cmp_type, typename parser_type_r>
-    requires is_parser<parser_type_r> &&  std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, cmp_type>
+    requires is_parser<parser_type_r> &&  weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, cmp_type>
     constexpr auto operator|(cmp_type&& left,parser_type_r&& right) {
         auto l = Check<typename std::decay_t<parser_type_r>::token_t,cmp_type>(std::forward<cmp_type>(left));
         using parser_type_l = decltype(l);
@@ -1389,7 +1391,7 @@ namespace pkuyo::parsers {
 
     // Creates a parser_then
     template<typename parser_type_l, typename cmp_type>
-    requires is_parser<parser_type_l> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, cmp_type>
+    requires is_parser<parser_type_l> && weakly_equality_comparable_with<typename std::decay_t<parser_type_l>::token_t, cmp_type>
     constexpr auto operator>>(parser_type_l&& left,cmp_type&& right) {
         using token_t = std::decay_t<parser_type_l>::token_t;
 
@@ -1399,7 +1401,7 @@ namespace pkuyo::parsers {
     }
 
     template<typename cmp_type, typename parser_type_r>
-    requires is_parser<parser_type_r> && std::__weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, cmp_type>
+    requires is_parser<parser_type_r> && weakly_equality_comparable_with<typename std::decay_t<parser_type_r>::token_t, cmp_type>
     constexpr auto operator>>(cmp_type&& left,parser_type_r&& right) {
         using token_t = std::decay_t<parser_type_r>::token_t;
 

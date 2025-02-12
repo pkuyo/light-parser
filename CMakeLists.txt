@@ -28,6 +28,7 @@ add_executable(light_parser main.cpp
         include/token_stream.h
 )
 
+enable_testing()
 
 add_subdirectory(test)
 add_subdirectory(examples/customizable_tokens_parser)
