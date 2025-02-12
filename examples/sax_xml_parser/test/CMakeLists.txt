@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.27)
 project(sax_xml_test)
 
 add_executable(sax_xml_test sax_xml_test.cpp)

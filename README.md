@@ -1,7 +1,7 @@
 
 # LightParser - A Lightweight C++ Parser-Combinator Library
 
-![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)  [![linux](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml)  [![macOS](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml)
+![C++](https://img.shields.io/badge/C++-20-blue.svg)  ![License](https://img.shields.io/badge/License-MIT-green.svg)  [![linux](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/linux.yml)  [![macOS](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/macos.yml)  [![windows](https://github.com/pkuyo/light-parser/actions/workflows/windows.yml/badge.svg)](https://github.com/pkuyo/light-parser/actions/workflows/windows.yml)
 
 LightParser is a lightweight parser combinator library based on C++20, designed using the parser combinator pattern to help developers quickly build flexible recursive descent parsers.
 
@@ -200,6 +200,7 @@ For more complex usage scenarios, refer to the examples in the [examples](exampl
 | `SingleValue()`    | Create a value parser                                                                                     |
 | `SinglePtr()`      | Create a value parser (return unique_ptr<>)                                                               |
 | `SeqValue()`       | Create a multi-value parser                                                                               |
+| `Or_BackTrack()`   | Create a or composition parser with backtrack                                                             |
 | `SeqPtr()`         | Create a multi-value parser (return unique_ptr<>)                                                         |
 | `WithState()`      | Create a  parser with a local state                                                                       |
 | `DefaultOnError()` | Sets a default error handler for all parsers                                                              |

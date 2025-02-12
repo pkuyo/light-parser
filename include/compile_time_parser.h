@@ -351,7 +351,7 @@ namespace pkuyo::parsers {
 
     // A parser that only matches the first token.
     //  Requires that 'cmp_type' and 'token_type' have overloaded the == and != operators.
-    //  If the match is successful, it returns 'return_type‘;
+    //  If the match is successful, it returns 'return_type';
     //  if the match fails, it attempts an error recovery strategy and returns 'std::nullopt'.
     template<typename token_type, typename return_type, typename cmp_type,typename FF>
     requires weakly_equality_comparable_with<token_type, cmp_type>
@@ -1322,7 +1322,7 @@ namespace pkuyo::parsers {
     template<typename token_type,bool is_after_this = false,typename cmp_type = token_type, typename return_type = nullptr_t>
     requires (weakly_equality_comparable_with<token_type, cmp_type>)
     constexpr auto Sync(token_type&& sync_point) {
-        auto ff = [=](const token_type& token) {return token == sync_point;};
+        auto ff = [sync_point](const token_type& token) {return token == sync_point;};
         return sync_point_recovery_parser<token_type,is_after_this, decltype(ff),return_type>(std::move(ff));
     }
 }
@@ -1440,7 +1440,7 @@ namespace pkuyo::parsers {
     requires is_parser<parser_type>
     constexpr auto operator&(parser_type && parser) {return Pred(std::forward<parser_type>(parser));}
 
-    // Creates a optional parser that
+    // Creates an optional parser that
     template<typename parser_type>
     requires is_parser<parser_type>
     constexpr auto operator~(parser_type && parser) {return Optional(std::forward<parser_type>(parser));}

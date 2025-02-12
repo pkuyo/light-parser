@@ -3,7 +3,7 @@ name: macOS
 on: [push, pull_request]
 
 jobs:
-  xcode:
+  unit-test:
     strategy:
       fail-fast: false
       matrix:

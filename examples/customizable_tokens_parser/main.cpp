@@ -21,7 +21,7 @@
 */
 
 template<typename T>
-auto JsonNode(TokenType & type) { return pkuyo::parsers::SinglePtr<TokenType,Token,T>(type);}
+auto JsonNode(token_type & type) { return pkuyo::parsers::SinglePtr<token_type,Token,T>(type);}
 
 namespace json {
     using namespace pkuyo::parsers;
@@ -31,16 +31,16 @@ namespace json {
 
     //Terminal Symbol
 
-    auto number = SinglePtr<Token,TokenType,NumberNode>(TokenType::NUMBER).Name("Name");
+    auto number = SinglePtr<Token,token_type,NumberNode>(token_type::NUMBER).Name("Name");
 
-    auto str = SinglePtr<Token,TokenType,StringNode>(TokenType::STRING).Name("String");
+    auto str = SinglePtr<Token,token_type,StringNode>(token_type::STRING).Name("String");
 
     //bool
-    auto true_false = (SinglePtr<Token,TokenType,BoolNode>(TokenType::FALSE_) |SinglePtr<Token,TokenType,BoolNode>(TokenType::TRUE_)).Name("Bool");
+    auto true_false = (SinglePtr<Token,token_type,BoolNode>(token_type::FALSE_) |SinglePtr<Token,token_type,BoolNode>(token_type::TRUE_)).Name("Bool");
 
-    auto null = SinglePtr<Token,TokenType,NullNode>(TokenType::NULL_).Name("Null") >>= [](unique_ptr<NullNode> &&t) { return unique_ptr<AstNode>(std::move(t)); };
+    auto null = SinglePtr<Token,token_type,NullNode>(token_type::NULL_).Name("Null") >>= [](unique_ptr<NullNode> &&t) { return unique_ptr<AstNode>(std::move(t)); };
 
-    auto comma = Check<Token,TokenType>(TokenType::COMMA).Name(",");
+    auto comma = Check<Token,token_type>(token_type::COMMA).Name(",");
 
     //Non-terminal Symbol
 
@@ -55,14 +55,14 @@ namespace json {
     }).Name("Elements");
 
 
-    auto array = ( (TokenType::LBRACKET >> ~elements >>TokenType::RBRACKET) >>=
+    auto array = ( (token_type::LBRACKET >> ~elements >>token_type::RBRACKET) >>=
                            [](auto &&t) {
                                if (!t) return make_unique<ArrayNode>(vector<unique_ptr<AstNode>>());
                                return make_unique<ArrayNode>(std::move(t.value()));
                            }).Name("Array");
 
 
-    auto pair =( (str >> TokenType::COLON >> l_value) >>= [](auto &&t) {
+    auto pair =( (str >> token_type::COLON >> l_value) >>= [](auto &&t) {
         return std::make_unique<PairNode>(std::move(std::get<0>(t)), std::move(std::get<1>(t)));
     }).Name("Pair");
 
@@ -72,7 +72,7 @@ namespace json {
         return std::move(values);
     }).Name("Members");
 
-    auto object = ((TokenType::LBRACE >> ~members >> TokenType::RBRACE ) >>= [](auto &&t)  {
+    auto object = ((token_type::LBRACE >> ~members >> token_type::RBRACE ) >>= [](auto &&t)  {
         if (!t) return std::make_unique<ObjectNode>(std::vector<std::unique_ptr<PairNode>>());
         return std::make_unique<ObjectNode>(std::move(t.value()));
     }).Name("Object");

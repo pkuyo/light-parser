@@ -22,9 +22,9 @@
 #include <cstddef>
 #include <variant>
 #include "token_stream.h"
-#ifdef __clang__
+
 using nullptr_t = std::nullptr_t;
-#endif
+
 namespace pkuyo::parsers {
 
 

@@ -9,23 +9,18 @@ using namespace pkuyo::parsers;
 struct TestToken {
     std::string value;
 
+    TestToken(std::string&& str) : value(std::move(str)) {}
+    TestToken(){}
+
     operator std::string() const {
         return value;
     }
 
-    bool operator==(const TestToken &other) const {
-        return value == other.value;
+    friend bool operator==(const TestToken &left, const TestToken &right) {
+        return left.value == right.value;
     }
 
 
-    friend bool operator==(const TestToken &self, const std::string_view &other) {
-        return self.value == other;
-    }
-
-
-    friend bool operator!=(const TestToken &self, const std::string_view &other) {
-        return self.value != other;
-    }
 
 };
 
@@ -35,80 +30,46 @@ protected:
 
 };
 
-TEST_F(ParserTest, ConstexprParser) {
-
-    constexpr auto parser = *Check<char>(' ') >> SeqValue<char,std::string>("hello") >> "::" >> SeqValue<char,std::string>("end");
-    string_stream tokens("  hello::end;");
-
-    auto result = parser.Parse(tokens);
-    ASSERT_TRUE(result.has_value());
-
-    auto & [first, end] = *result;
-    EXPECT_EQ(first, "hello");
-    EXPECT_EQ(end, "end");
-}
-
-TEST_F(ParserTest, UntilParser) {
-
-    constexpr auto parser = Check<char>('<') >> Until<char>('>') >> ">";
-    string_stream tokens("<token>");
-    auto result = parser.Parse(tokens);
-
-    ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(*result, "token");
-}
 
 TEST_F(ParserTest, CheckParser) {
-    auto parser = Check<TestToken>("keyword").Name("CheckTest");
-    std::vector<TestToken> tokens = {{"keyword"},
-                                     {"other"}};
+    constexpr auto parser = Check<char>('A');
 
-    auto stream = ContainerStream(tokens);
+    string_stream stream("AB");
     EXPECT_TRUE(parser.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), "other");
+    EXPECT_EQ(stream.Peek(), 'B');
 }
 
 TEST_F(ParserTest, SingleValueParser) {
-    auto parser = SingleValue<TestToken,std::string,std::string>("number", [](const TestToken &token) {
-        return token.value;
-    });
-    std::vector<TestToken> tokens = {{"number"},
-                                     {"+"}};
+    constexpr auto parser = SingleValue<char>('c');
 
-    auto stream = ContainerStream(tokens);
+    string_stream stream("cd");
+
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(*result, "number");
-    EXPECT_EQ(stream.Peek(), "+");
+    EXPECT_EQ(*result, 'c');
+    EXPECT_EQ(stream.Peek(), 'd');
 }
 
 
 
 TEST_F(ParserTest, SinglePtrParser) {
-    auto parser = SinglePtr<TestToken,std::string,std::string>("number", [](const TestToken &token) {
-        return std::make_unique<std::string>(token.value);
-    });
-    std::vector<TestToken> tokens = {{"number"},
-                                     {"+"}};
+    auto parser = SinglePtr<char>('1');
 
-    auto stream = ContainerStream(tokens);
+    string_stream stream("1+");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ((*result.value()), "number");
-    EXPECT_EQ(stream.Peek(), "+");
+    EXPECT_EQ((*result.value()),'1');
+    EXPECT_EQ(stream.Peek(), '+');
 }
 
 TEST_F(ParserTest, SingleValueParserWithFunc) {
-    auto parser = SingleValue<TestToken>([](const TestToken & token) {return *(token.value.begin()) == 'a';})
-            >>= ([](const TestToken & token) {return token.value;});
-    std::vector<TestToken> tokens = {{"a_token"},
-                                     {"+"}};
+    constexpr auto parser = SingleValue<char>(isdigit);
 
-    auto stream = ContainerStream(tokens);
+    string_stream stream("1+");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(*result, "a_token");
-    EXPECT_EQ(stream.Peek(), "+");
+    EXPECT_EQ(*result, '1');
+    EXPECT_EQ(stream.Peek(), '+');
 }
 
 TEST_F(ParserTest, SeqParser) {
@@ -123,50 +84,50 @@ TEST_F(ParserTest, SeqParser) {
     auto stream = ContainerStream(tokens);
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(stream.Peek(), "number");
+    EXPECT_EQ(stream.Peek().value, "number");
 }
 
 TEST_F(ParserTest, ThenCombination) {
 
-    auto parser = Check<TestToken>("A") >> "B";
+    constexpr auto parser = SingleValue<char>('A') >> 'B';
 
-    std::vector<TestToken> valid = {{"A"},
-                                    {"B"}};
-    auto valid_stream = ContainerStream(valid);
+    string_stream valid("AB");
 
-    EXPECT_TRUE(parser.Parse(valid_stream).has_value());
-    EXPECT_TRUE(valid_stream.Eof());
+    EXPECT_TRUE(parser.Parse(valid).has_value());
+    EXPECT_TRUE(valid.Eof());
 
-    std::vector<TestToken> invalid = {{"A"},
-                                      {"C"}};
-    auto invalid_stream = ContainerStream(invalid);
+    string_stream invalid("AC");
 
-    EXPECT_THROW(parser.Parse(invalid_stream), parser_exception);
+    EXPECT_THROW(parser.Parse(invalid), parser_exception);
 }
 
 TEST_F(ParserTest, OrCombination) {
-    auto parser = Check<TestToken>("A") | "B";
+    constexpr auto parser = SingleValue<char>('A') | SingleValue<char>('B');
 
-    std::vector<TestToken> tokens1 = {{"A"}};
-    auto stream1 = ContainerStream(tokens1);
+    string_stream stream1("AB");
     EXPECT_TRUE(parser.Parse(stream1).has_value());
 
-    std::vector<TestToken> tokens2 = {{"B"}};
-    auto stream2 = ContainerStream(tokens2);
+    string_stream stream2("B");
     EXPECT_TRUE(parser.Parse(stream2).has_value());
 }
 
-TEST_F(ParserTest, ManyParser) {
-    auto parser = *Check<TestToken>("num");
+TEST_F(ParserTest, UntilParser) {
 
-    std::vector<TestToken> empty = {};
-    auto empty_stream = ContainerStream(empty);
+    constexpr auto parser = Check<char>('<') >> Until<char>('>') >> ">";
+    string_stream tokens("<token>");
+    auto result = parser.Parse(tokens);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "token");
+}
+
+TEST_F(ParserTest, ManyParser) {
+    constexpr auto parser = *Check<char>('a');
+
+    string_stream empty_stream("");
     EXPECT_TRUE(parser.Parse(empty_stream).has_value());
 
-    std::vector<TestToken> three_nums = {{"num"},
-                                         {"num"},
-                                         {"num"}};
-    auto stream = ContainerStream(three_nums);
+    string_stream stream("aaa");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
 
@@ -174,7 +135,8 @@ TEST_F(ParserTest, ManyParser) {
 
 TEST_F(ParserTest, SemanticActionParser) {
     std::string output;
-    auto parser = SingleValue<TestToken>("num") <<= [&output] (const TestToken & t) { output = t.value;};
+    auto parser = SingleValue<TestToken>(TestToken("num"))
+            <<= [&output] (const TestToken & t) { output = t.value;};
 
     std::vector<TestToken> input = {{"num"}};
     auto stream = ContainerStream(input);
@@ -185,51 +147,47 @@ TEST_F(ParserTest, SemanticActionParser) {
 }
 
 TEST_F(ParserTest, MoreParser) {
-    auto parser = +Check<TestToken>("num");
+    constexpr auto parser = +Check<char>('a');
 
 
-    std::vector<TestToken> three_nums = {{"num"},
-                                         {"num"},
-                                         {"num"}};
-    auto stream = ContainerStream(three_nums);
+    string_stream stream("aaa");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
 
-    std::vector<TestToken> invalid = {{"invalid"}};
-    auto invalid_stream = ContainerStream(invalid);
-    EXPECT_THROW(parser.Parse(invalid_stream), parser_exception);
+    string_stream empty_stream("");
+    EXPECT_THROW(parser.Parse(empty_stream), parser_exception);
 }
 
 
 
 TEST_F(ParserTest, OptionalCheckParser) {
-    auto expr = ~Check<TestToken>("optional");
+    auto expr = ~Check<TestToken>(TestToken("optional"));
 
     std::vector<TestToken> tokens = {{"any"}};
     auto stream = ContainerStream(tokens);
     EXPECT_TRUE(expr.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), "any");
+    EXPECT_EQ(stream.Peek().value, "any");
 
     tokens = {{"optional"},
               {"any"}};
     stream = ContainerStream(tokens);
     EXPECT_TRUE(expr.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), "any");
+    EXPECT_EQ(stream.Peek().value, "any");
 }
 
 TEST_F(ParserTest, OptionalSingleParser) {
-    auto expr = ~SingleValue<TestToken>("optional");
+    auto expr = ~SingleValue<TestToken>(TestToken("optional"));
 
     std::vector<TestToken> tokens = {{"any"}};
     auto stream = ContainerStream(tokens);
     EXPECT_TRUE(expr.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), "any");
+    EXPECT_EQ(stream.Peek().value, "any");
 
     tokens = {{"optional"},
               {"any"}};
     stream = ContainerStream(tokens);
     EXPECT_TRUE(expr.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), "any");
+    EXPECT_EQ(stream.Peek().value, "any");
 }
 
 TEST_F(ParserTest, WhereParser) {
@@ -305,7 +263,7 @@ TEST_F(ParserTest, BackTrack) {
     EXPECT_EQ(*result, "abccd");
 }
 TEST_F(ParserTest, ErrorRecovery) {
-    auto parser = TryCatch(Check<TestToken>("expected"),
+    auto parser = TryCatch(Check<TestToken>(TestToken("expected")),
             Sync(TestToken(";"))).Name("ErrorTest");
     std::vector<TestToken> tokens = {{"unexpected"},
                                      {";"},

@@ -9,7 +9,7 @@
 #include <regex>
 
 
-enum class TokenType {
+enum class token_type {
     LBRACE,    // {
     RBRACE,    // }
     LBRACKET,  // [
@@ -28,26 +28,26 @@ enum class TokenType {
 
 // token
 struct Token {
-    TokenType type;
+    token_type type;
     std::string value;
 
     explicit operator std::string() const {
         return value;
     }
 
-    friend bool operator==(const Token &left, TokenType right) {
+    friend bool operator==(const Token &left, token_type right) {
         return left.type == right;
     }
 
-    friend bool operator!=(const Token &left, TokenType right) {
+    friend bool operator!=(const Token &left, token_type right) {
         return left.type != right;
     }
 
-    friend bool operator==(TokenType left, const Token &right) {
+    friend bool operator==(token_type left, const Token &right) {
         return left == right.type;
     }
 
-    friend bool operator!=(TokenType left, const Token &right) {
+    friend bool operator!=(token_type left, const Token &right) {
         return left != right.type;
     }
 };
@@ -71,7 +71,7 @@ public:
                 if (std::regex_search(input.cbegin() + position, input.cend(), match, regex,
                                       std::regex_constants::match_continuous)) {
                     std::string value = match.str(0);
-                    if (pattern.first != TokenType::WHITESPACE) {
+                    if (pattern.first != token_type::WHITESPACE) {
                         tokens.push_back({pattern.first, value});
                     }
                     position += value.length();
@@ -90,19 +90,19 @@ private:
     std::string input;
     size_t position;
 
-    const std::vector<std::pair<TokenType, std::string>> tokenPatterns = {
-            {TokenType::LBRACE,     R"(\{)"},          // {
-            {TokenType::RBRACE,     R"(\})"},          // }
-            {TokenType::LBRACKET,   R"(\[)"},          // [
-            {TokenType::RBRACKET,   R"(\])"},          // ]
-            {TokenType::COLON,      R"(:)"},           // :
-            {TokenType::COMMA,      R"(,)"},           // ,
-            {TokenType::STRING,     R"("(?:\\.|[^"\\])*")"}, // string
-            {TokenType::NUMBER,     R"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"}, // number
-            {TokenType::TRUE_,       R"(true)"},        // true
-            {TokenType::FALSE_,      R"(false)"},       // false
-            {TokenType::NULL_,      R"(null)"},        // null
-            {TokenType::WHITESPACE, R"(\s+)"}         // 空白字符
+    const std::vector<std::pair<token_type, std::string>> tokenPatterns = {
+            {token_type::LBRACE,     R"(\{)"},          // {
+            {token_type::RBRACE,     R"(\})"},          // }
+            {token_type::LBRACKET,   R"(\[)"},          // [
+            {token_type::RBRACKET,   R"(\])"},          // ]
+            {token_type::COLON,      R"(:)"},           // :
+            {token_type::COMMA,      R"(,)"},           // ,
+            {token_type::STRING,     R"("(?:\\.|[^"\\])*")"}, // string
+            {token_type::NUMBER,     R"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"}, // number
+            {token_type::TRUE_,       R"(true)"},        // true
+            {token_type::FALSE_,      R"(false)"},       // false
+            {token_type::NULL_,      R"(null)"},        // null
+            {token_type::WHITESPACE, R"(\s+)"}         // 空白字符
     };
 };
 

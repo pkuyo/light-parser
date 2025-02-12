@@ -1,0 +1,46 @@
+name: windows
+
+
+on: [push, pull_request]
+
+jobs:
+  unit-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        toolset: [v143]
+        build_type: [Debug, Release]
+        os: [windows-2022]
+        arch: [Win32, x64]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+
+      - name: Set up MSVC environment
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{matrix.arch}}
+          echo "MSVC environment set up for ${{matrix.arch}}"
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Create Build Environment
+        run: cmake -E make_directory build
+
+
+      - name: Configure CMake
+        shell: bash
+        working-directory: build/
+        run: |
+          cmake $GITHUB_WORKSPACE -G "Visual Studio 17 2022" -T ${{matrix.toolset}} -A ${{matrix.arch}} -DCMAKE_CXX_STANDARD=20
+
+      - name: Build project
+        run: cmake --build ${{ github.workspace }}\build --config ${{ matrix.build_type }}
+
+      - name: Run tests
+        working-directory: ${{ github.workspace }}\build
+        run: ctest -C ${{ matrix.build_type }} --output-on-failure
