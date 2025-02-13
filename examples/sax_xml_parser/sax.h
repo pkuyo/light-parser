@@ -24,9 +24,6 @@ namespace xml_sax {
         virtual void error(const string& msg) = 0;
     };
 
-
-    struct lazy_element;
-
     struct tag_state {
         string name;
     };
@@ -93,22 +90,21 @@ namespace xml_sax {
 
 
     constexpr auto content = Until<char>('<').Name("content")
-            >>= [](auto&& content,auto& handler, auto state) {
+            >>= [](auto&& content,auto& handler, auto& state) {
                     handler.characters(content);
                     return nullptr;
                 };
 
-    constexpr auto node = (Lazy<char,lazy_element>() | content )>> whitespace;
+#if  defined(__GNUC__) && !defined(__clang__)
+    struct lazy_element;
 
-    constexpr auto element = TryCatch(WithState<tag_state>(open_tag >> ('>' >> whitespace >> *node >> close_tag | self_close)),
+    constexpr auto element =
+                TryCatch(WithState<tag_state>(open_tag >> ('>' >> whitespace >> *( (Lazy<char,lazy_element>() | content )>> whitespace) >> close_tag | self_close)),
                                       Sync<char>('<'),
-                                      [](auto&& ex, auto && handler) {handler.error(ex.what());}
-                                );
-
-    constexpr auto root = whitespace >> *("<?xml" >> -Until<char>('?') >> "?>" >> whitespace) >> element;
+                                      [](auto&& ex, auto && handler) {handler.error(ex.what());});
 
 
-    struct lazy_element : public base_parser<char,lazy_element> {
+    struct lazy_element : base_parser<char,lazy_element> {
         optional<nullptr_t> parse_impl(auto & stream,auto& g_ctx,auto& ctx) const {
             return element.Parse(stream,g_ctx,ctx);
         }
@@ -116,6 +112,19 @@ namespace xml_sax {
             return element.Peek(stream);
         }
     };
+
+#else
+
+    constexpr auto element = Lazy<char,nullptr_t>([](auto&& self) {
+             return TryCatch(WithState<tag_state>(open_tag >> ('>' >> whitespace >> *( (self | content )>> whitespace) >> close_tag | self_close)),
+                                      Sync<char>('<'),
+                                      [](auto&& ex, auto && handler) {handler.error(ex.what());});
+    });
+
+#endif
+    constexpr auto root = whitespace >> *("<?xml" >> -Until<char>('?') >> "?>" >> whitespace) >> element;
+
+
     template<typename Stream,typename Handler>
     requires is_base_of_v<SAXHandler,Handler>
     void parse(Stream& stream, Handler& handler) {

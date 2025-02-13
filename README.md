@@ -99,6 +99,21 @@ For context usage scenarios, refer to the examples in the [examples/sax_xml_pars
 
 #### Lazy Parsing
 
+**Self-referential parser**
+```cpp
+using namespace pkuyo::parsers;
+
+//Note: Not compatible with GCC
+
+/*add static if with-in function*/
+constexpr auto parser = Lazy<char,nullptr_t/*return type*/>([](auto && self) {
+    return '(' >> self >> ')';
+});
+
+```
+
+**Recursive parser**
+
 ```cpp
 using namespace pkuyo::parsers;
 

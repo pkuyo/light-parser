@@ -157,6 +157,15 @@ namespace pkuyo::parsers{
 
     template<typename T,typename Y>
     constexpr bool base_or_same_v = std::is_same_v<T,Y> || std::is_base_of_v<T,Y>;
+
+
+    template <typename T, typename = void>
+    struct is_complete : std::false_type {};
+
+    template <typename T>
+    struct is_complete<T, std::void_t<decltype(sizeof(T))>> : std::true_type {};
+    template<typename T>
+    constexpr bool is_complete_v = is_complete<T>::value;
 }
 
 #endif //LIGHT_PARSER_TRAITS_H

@@ -127,7 +127,7 @@ namespace pkuyo::parsers {
     };
 
     template <typename T>
-    concept is_parser = std::is_base_of_v<_abstract_parser<typename std::remove_reference_t<T>::token_t>,std::remove_reference_t<T>>;
+    concept is_parser = (!is_complete_v<T>) || std::is_base_of_v<_abstract_parser<typename std::remove_reference_t<T>::token_t>,std::remove_reference_t<T>>;
 
 
 }

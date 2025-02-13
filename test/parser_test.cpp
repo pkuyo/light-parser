@@ -318,8 +318,24 @@ TEST_F(ParserTest, LazyParser) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(*result, 6);
 
-}
 
+}
+#if !defined(__GNUC__)  || defined(__clang__)
+
+TEST_F(ParserTest, SelfLazyParser) {
+    static constexpr auto parser = Lazy<char,int>([](auto && self) {
+        return ((SingleValue<char>(&isdigit) >>=[](auto && t){return t - '0';}) >> ~self) >>= [](auto && t) {
+            if(std::get<1>(t))
+                return std::get<0>(t) + *std::get<1>(t);
+            return std::get<0>(t);
+        };
+    });
+    string_stream tokens("123");
+    auto result = parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, 6);
+}
+#endif
 TEST_F(ParserTest, StringParser) {
 
     constexpr auto parser = (Str<char>("key") | Str<char>("word")) >> "::" >>  Until<char>(';');

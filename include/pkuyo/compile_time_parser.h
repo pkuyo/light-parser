@@ -803,6 +803,48 @@ namespace pkuyo::parsers {
 
     };
 
+#if !defined(__GNUC__)  || defined(__clang__)
+
+    template<typename token_type,typename return_type, typename Generator>
+    struct parser_auto_lazy : public base_parser<token_type, parser_auto_lazy<token_type,return_type, Generator>> {
+        struct Proxy;
+
+        using RealParser = decltype(
+        std::declval<Generator>()(std::declval<Proxy>())
+        );
+
+        template<typename Stream>
+        bool peek_impl(Stream& s) const {
+            return impl_.peek_impl(s);
+        }
+
+        template<typename Stream, typename G, typename L>
+        std::optional<return_type> parse_impl(Stream& s, G& g, L& l) const {
+            return impl_.parse_impl(s, g, l);
+        }
+        RealParser impl_;
+
+    public:
+        struct Proxy : public base_parser<token_type, Proxy> {
+            constexpr Proxy(parser_auto_lazy* _host) : host(_host) {}
+            parser_auto_lazy* host;
+
+            template<typename Stream>
+            bool peek_impl(Stream& s) const {
+                return host->impl_.peek_impl(s);
+            }
+
+            template<typename Stream, typename G, typename L>
+            std::optional<return_type> parse_impl(Stream& s, G& g, L& l) const {
+                return host->impl_.parse_impl(s, g, l);
+            }
+        };
+
+        constexpr explicit parser_auto_lazy(Generator g)
+                : impl_(g(Proxy(this))) {}
+    };
+
+#endif
 
     // Convert the parsing result to the target type's parser.
     template<typename child_type, typename FF>
@@ -1263,6 +1305,15 @@ namespace pkuyo::parsers {
     constexpr auto Lazy() {
         return parser_lazy<token_type,real_parser>();
     }
+
+#if !defined(__GNUC__)  || defined(__clang__)
+
+    template<typename token_type,typename return_type, typename FF>
+    constexpr auto Lazy(FF f) {
+        return parser_auto_lazy<token_type,return_type, FF>(f);
+    }
+
+#endif
 
     template<typename child_type>
     requires is_parser<child_type>
