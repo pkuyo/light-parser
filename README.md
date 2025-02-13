@@ -216,6 +216,7 @@ base_parser class used for constructing parser combinators and actual expression
 | `!`               | Create a negation Parser (Prediction Only)                                                  |
 | `&`               | Create a Parser (Prediction Only)                                                           |
 | `~`               | Create a optional parser      (return `optional<t>`)                                        |
+| `%`               | Creates a parser that repeat N times.    (return `vector<t>` or `basic_string<t>`)          |
 | `*`               | Create a zero-or-more repetition parser  (return `vector<t>` or `basic_string<t>`)          |
 | `+`               | Create a one-or-more repetition parser   (return `vector<t>` or `basic_string<t>`)          |
 | `-`               | Create a parser ignore original result and return `nullptr`                                 |

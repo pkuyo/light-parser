@@ -3,6 +3,7 @@
 //
 #include "gtest/gtest.h"
 #include "parser.h"
+#include <cctype>
 
 using namespace pkuyo::parsers;
 
@@ -33,21 +34,34 @@ protected:
 
 TEST_F(ParserTest, CheckParser) {
     constexpr auto parser = Check<char>('A');
+    constexpr auto parser2 = Check<char>(&isupper);
 
     string_stream stream("AB");
     EXPECT_TRUE(parser.Parse(stream).has_value());
-    EXPECT_EQ(stream.Peek(), 'B');
+
+    string_stream stream1("C");
+    EXPECT_THROW(parser.Parse(stream1),parser_exception);
+
+    string_stream stream2("A");
+    EXPECT_TRUE(parser2.Parse(stream2).has_value());
+
+    string_stream stream3("a");
+    EXPECT_THROW(parser2.Parse(stream3),parser_exception);
+
 }
 
 TEST_F(ParserTest, SingleValueParser) {
     constexpr auto parser = SingleValue<char>('c');
 
     string_stream stream("cd");
+    string_stream stream2("e");
 
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(*result, 'c');
     EXPECT_EQ(stream.Peek(), 'd');
+    EXPECT_THROW(parser.Parse(stream2),parser_exception);
+
 }
 
 
@@ -56,22 +70,41 @@ TEST_F(ParserTest, SinglePtrParser) {
     auto parser = SinglePtr<char>('1');
 
     string_stream stream("1+");
+    string_stream stream2("2");
+
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ((*result.value()),'1');
     EXPECT_EQ(stream.Peek(), '+');
+    EXPECT_THROW(parser.Parse(stream2),parser_exception);
 }
 
 TEST_F(ParserTest, SingleValueParserWithFunc) {
-    constexpr auto parser = SingleValue<char>(isdigit);
+    constexpr auto parser = SingleValue<char>(&isdigit);
 
     string_stream stream("1+");
     auto result = parser.Parse(stream);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(*result, '1');
     EXPECT_EQ(stream.Peek(), '+');
+
+    string_stream stream2("a+");
+    EXPECT_THROW(parser.Parse(stream2),parser_exception);
+
 }
 
+TEST_F(ParserTest, SinglePtrParserWithFunc) {
+    constexpr auto parser = SinglePtr<char>(&isdigit);
+
+    string_stream stream("1+");
+    auto result = parser.Parse(stream);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result.value(), '1');
+    EXPECT_EQ(stream.Peek(), '+');
+
+    string_stream stream2("a+");
+    EXPECT_THROW(parser.Parse(stream2),parser_exception);
+}
 TEST_F(ParserTest, SeqParser) {
     std::vector<TestToken> test_swq= {{"number"},{"+"}};
 
@@ -158,7 +191,17 @@ TEST_F(ParserTest, MoreParser) {
     EXPECT_THROW(parser.Parse(empty_stream), parser_exception);
 }
 
+TEST_F(ParserTest, RepeatParser) {
+    constexpr auto parser = Check<char>('a') % 3;
 
+
+    string_stream stream("aaa");
+    auto result = parser.Parse(stream);
+    ASSERT_TRUE(result.has_value());
+
+    string_stream stream2("aa");
+    EXPECT_THROW(parser.Parse(stream2), parser_exception);
+}
 
 TEST_F(ParserTest, OptionalCheckParser) {
     auto expr = ~Check<TestToken>(TestToken("optional"));
@@ -191,7 +234,7 @@ TEST_F(ParserTest, OptionalSingleParser) {
 }
 
 TEST_F(ParserTest, WhereParser) {
-    constexpr auto num = +SingleValue<char>(isdigit) >>= [](auto && t) {return std::stoi(t);};
+    constexpr auto num = +SingleValue<char>(&isdigit) >>= [](auto && t) {return std::stoi(t);};
     constexpr auto parser = num && [](auto && re) {return re == 10;};
 
 
@@ -205,7 +248,7 @@ TEST_F(ParserTest, WhereParser) {
 }
 
 TEST_F(ParserTest, MapParser) {
-    constexpr auto num = +SingleValue<char>(isdigit) >>= [](auto && t) {return std::stoi(t);};
+    constexpr auto num = +SingleValue<char>(&isdigit) >>= [](auto && t) {return std::stoi(t);};
     constexpr auto parser = num >>= [](auto t) {return t*1.5;};
 
     string_stream stream("10");
@@ -225,10 +268,57 @@ TEST_F(ParserTest, NotParser) {
     EXPECT_EQ(*result, "Yes");
 
     EXPECT_THROW(parser.Parse(no_tokens), parser_exception);
+}
 
+TEST_F(ParserTest, PredTest) {
+    constexpr auto parser = &SeqCheck<char>("Yes") >> Str<char>("Yes");
+    string_stream tokens("Yes");
+    string_stream no_tokens("NoYes");
+
+    auto result = parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "Yes");
+    EXPECT_THROW(parser.Parse(no_tokens), parser_exception);
 
 }
 
+TEST_F(ParserTest, StateParser) {
+    constexpr auto parser = WithState<int>(*(SeqCheck<char>("Yes")
+            <<= [](auto&&,auto& g_state,auto & state) {state++;g_state+=state;}));
+
+    string_stream tokens("YesYesYes");
+    int global_state = 0;
+    auto result = parser.Parse(tokens,global_state);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(global_state, 6);
+}
+
+struct LazyTest;
+constexpr auto lazy_parser =
+        (SingleValue<char>(&isdigit) >>=[](auto && t){return t - '0';}) >> Lazy<char, LazyTest>()
+            >>= [](auto && t) {
+                return std::get<0>(t) + std::get<1>(t);
+            };
+
+struct LazyTest : base_parser<char,LazyTest> {
+    std::optional<int> parse_impl(auto& stream,auto g_ctx,auto ctx) const {
+         if(peek_impl(stream))
+            return lazy_parser.Parse(stream,g_ctx,ctx);
+         return std::make_optional(0);
+    }
+    bool peek_impl(auto& stream) const {
+        return lazy_parser.Peek(stream);
+    }
+};
+
+TEST_F(ParserTest, LazyParser) {
+
+    string_stream tokens("123");
+    auto result = lazy_parser.Parse(tokens);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, 6);
+
+}
 
 TEST_F(ParserTest, StringParser) {
 
@@ -275,7 +365,7 @@ TEST_F(ParserTest, ErrorRecovery) {
 }
 
 TEST_F(ParserTest, ArithmeticExpression) {
-    constexpr auto number = (+SingleValue<char>(isdigit))
+    constexpr auto number = (+SingleValue<char>(&isdigit))
             >>= [](auto && t) {return std::stoi(t);};
     constexpr auto op = SingleValue<char>('+') | SingleValue<char>('-');
     constexpr auto expr = number >> op >> number;
@@ -306,17 +396,36 @@ TEST_F(ParserTest, JsonStringParser) {
 
 TEST_F(ParserTest, FileStreamParsing) {
     std::ofstream tmp("test.tmp");
-    tmp << "TEST123";
+    tmp << "abccd";
     tmp.close();
 
     file_stream stream("test.tmp");
-    auto parser = *SingleValue<char>(isupper);
+    auto parser = Or_BackTrack(Str("abcdd"),Str("abcce"), Str("abccd"));
 
     auto result = parser.Parse(stream);
 
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(*result, "TEST");
+    EXPECT_EQ(*result, "abccd");
     std::remove("test.tmp");
+    EXPECT_THROW(file_stream("test1.tmp"),std::runtime_error);
+}
+
+
+TEST_F(ParserTest, MMAPStreamParsing) {
+    std::ofstream tmp("test.tmp");
+    tmp << "abccd";
+    tmp.close();
+
+    mmap_file_stream stream("test.tmp");
+    auto parser = Or_BackTrack(Str("abcdd"),Str("abcce"), Str("abccd"));
+
+    auto result = parser.Parse(stream);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, "abccd");
+    std::remove("test.tmp");
+    EXPECT_THROW(file_stream("test1.tmp"),std::runtime_error);
+
 }
 
 int main(int argc, char **argv) {

@@ -618,7 +618,7 @@ namespace pkuyo::parsers {
                 auto result = child_parser.parse_impl(stream, global_state, state);
                 if (!result) {
                     this->error_handle_recovery(stream);
-                    break;
+                    return std::optional<result_container_t<child_return_type>>();
                 }
                 if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
                     results.push_back(std::move(*result));
@@ -671,7 +671,7 @@ namespace pkuyo::parsers {
                 auto result = child_parser.parse_impl(stream, global_state, state);
                 if (!result) {
                     this->error_handle_recovery(stream);
-                    break;
+                    return std::optional<result_container_t<child_return_type>>();
                 }
                 if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
                     results.push_back(std::move(*result));
@@ -694,6 +694,50 @@ namespace pkuyo::parsers {
         }
     private:
         child_type child_parser;
+    };
+
+    template<typename child_type>
+    class parser_repeat : public base_parser<typename std::decay_t<child_type>::token_t,parser_repeat<child_type>> {
+
+    public:
+        constexpr explicit parser_repeat(const child_type & child,int _repeat_count): child_parser(child),
+        repeat_count(_repeat_count) {}
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using child_return_type = decltype(child_parser.parse_impl(stream,global_state,state))::value_type;
+
+            result_container_t<child_return_type> results;
+            if constexpr(std::is_same_v<child_return_type,nullptr_t>) results = nullptr;
+            for (int i = 0; i<repeat_count;i++) {
+                auto result = child_parser.parse_impl(stream, global_state, state);
+                if (!result) {
+                    this->error_handle_recovery(stream);
+                    return std::optional<result_container_t<child_return_type>>();
+                }
+                if constexpr(!std::is_same_v<child_return_type,nullptr_t>)
+                    results.push_back(std::move(*result));
+            }
+            return std::make_optional(std::move(results));
+
+        }
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return child_parser.peek_impl(stream);
+        }
+
+
+        void reset_impl() const {
+            child_parser.reset_impl();
+        }
+
+        void no_error_impl() {
+            child_parser.NoError_Internal();
+        }
+
+    private:
+        child_type child_parser;
+        int repeat_count;
     };
 
     // Match an optional element parser. If no match, return std::optional<xxx>(std::nullopt).
@@ -1168,7 +1212,7 @@ namespace pkuyo::parsers {
         return parser_with_func<token_type, return_type,FF>(compare_func);
     }
 
-    template<typename token_type,typename return_type, typename FF>
+    template<typename token_type,typename return_type = token_type, typename FF>
     requires (!weakly_equality_comparable_with<token_type, FF>)
     constexpr auto SinglePtr(FF compare_func) {
         return parser_with_func<token_type,std::unique_ptr<return_type>,FF>(compare_func);
@@ -1230,6 +1274,12 @@ namespace pkuyo::parsers {
     requires is_parser<child_type>
     constexpr auto Many(child_type && child) {
         return parser_many<std::remove_reference_t<child_type>>(std::forward<child_type>(child));
+    }
+
+    template<typename child_type>
+    requires is_parser<child_type>
+    constexpr auto Repeat(child_type && child, int repeat_count) {
+        return parser_repeat<std::remove_reference_t<child_type>>(std::forward<child_type>(child),repeat_count);
     }
 
     template<typename child_type>
@@ -1434,6 +1484,11 @@ namespace pkuyo::parsers {
     template<typename parser_type>
     requires is_parser<parser_type>
     constexpr auto operator+(parser_type && parser) {return More(std::forward<parser_type>(parser));}
+
+    // Creates a parser_repeat using parser.
+    template<typename parser_type>
+    requires is_parser<parser_type>
+    constexpr auto operator%(parser_type && parser,int repeat_count) {return Repeat(std::forward<parser_type>(parser),repeat_count);}
 
     // Creates a parser that only pred tokens using parser.
     template<typename parser_type>
