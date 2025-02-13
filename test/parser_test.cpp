@@ -2,7 +2,7 @@
 // Created by pkuyo on 2025/1/31.
 //
 #include "gtest/gtest.h"
-#include "parser.h"
+#include "pkuyo/parser.h"
 #include <cctype>
 
 using namespace pkuyo::parsers;

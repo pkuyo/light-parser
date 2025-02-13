@@ -4,7 +4,7 @@
 
 #ifndef LIGHT_PARSER_CALC_PARSER_H
 #define LIGHT_PARSER_CALC_PARSER_H
-#include "parser.h"
+#include "pkuyo/parser.h"
 using namespace pkuyo::parsers;
 
 namespace num_parser {

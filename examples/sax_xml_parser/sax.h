@@ -5,8 +5,8 @@
 #ifndef LIGHT_PARSER_SAX_H
 #define LIGHT_PARSER_SAX_H
 
-#include "compile_time_parser.h"
-#include "token_stream.h"
+#include "pkuyo/compile_time_parser.h"
+#include "pkuyo/token_stream.h"
 #include <map>
 
 namespace xml_sax {

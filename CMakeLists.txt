@@ -19,13 +19,13 @@ include_directories(include)
 
 
 add_executable(light_parser main.cpp
-        include/parser.h
-        include/error_handler.h
-        include/traits.h
-        include/base_parser.h
-        include/compile_time_parser.h
-        include/runtime_parser.h
-        include/token_stream.h
+        include/pkuyo/parser.h
+        include/pkuyo/error_handler.h
+        include/pkuyo/traits.h
+        include/pkuyo/base_parser.h
+        include/pkuyo/compile_time_parser.h
+        include/pkuyo/runtime_parser.h
+        include/pkuyo/token_stream.h
 )
 
 enable_testing()

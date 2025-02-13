@@ -4,7 +4,7 @@
 // Parse customizable token example
 //
 
-#include "parser.h"
+#include "pkuyo/parser.h"
 
 #include "lexer.h"
 #include "ast_node.h"
