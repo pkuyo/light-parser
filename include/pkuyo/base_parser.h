@@ -126,9 +126,6 @@ namespace pkuyo::parsers {
         constexpr base_parser() = default;
     };
 
-    template <typename T>
-    concept is_parser = (!is_complete_v<T>) || std::is_base_of_v<_abstract_parser<typename std::remove_reference_t<T>::token_t>,std::remove_reference_t<T>>;
-
 
 }
 #endif //LIGHT_PARSER_BASE_PARSER_H

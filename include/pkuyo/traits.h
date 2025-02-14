@@ -169,6 +169,24 @@ namespace pkuyo::parsers{
     template <typename l, typename r,typename g_state,typename state>
     using filter_or_t =filter_or_impl_t<parser_result_t<l,g_state,state>,parser_result_t<r,g_state,state>>;
 
+    template<typename GState, typename State, typename Tuple>
+    struct filter_or_combine;
+
+
+    template<typename GState, typename State, typename L, typename R>
+    struct filter_or_combine<GState, State, std::tuple<L,R>> {
+        using type = filter_or_t<L, R, GState, State>;
+    };
+
+
+    template<typename GState, typename State, typename First, typename Second, typename... Rest>
+    struct filter_or_combine<GState, State, std::tuple<First, Second, Rest...>> {
+        using type = filter_or_impl_t<parser_result_t<First,GState, State>, typename filter_or_combine<GState, State, std::tuple<Second, Rest...>>::type>;
+    };
+
+    template<typename Tuple, typename GState, typename State>
+    using multi_filter_or_t = typename filter_or_combine<GState, State,Tuple>::type;
+
     template<typename T>
     using result_container_t = std::conditional_t<std::is_same_v<T,nullptr_t>,nullptr_t,
             std::conditional_t<
@@ -186,9 +204,6 @@ namespace pkuyo::parsers{
         { __u != __t };
     };
 
-    template<typename T,typename Y>
-    constexpr bool base_or_same_v = std::is_same_v<T,Y> || std::is_base_of_v<T,Y>;
-
 
     template <typename T, typename = void>
     struct is_complete : std::false_type {};
@@ -197,6 +212,42 @@ namespace pkuyo::parsers{
     struct is_complete<T, std::void_t<decltype(sizeof(T))>> : std::true_type {};
     template<typename T>
     constexpr bool is_complete_v = is_complete<T>::value;
+
+
+    template<typename token_type>
+    class _abstract_parser;
+
+    template <typename T>
+    concept is_parser = (!is_complete_v<T>) || std::is_base_of_v<_abstract_parser<typename std::remove_reference_t<T>::token_t>,std::remove_reference_t<T>>;
+
+
+
+    template<typename T>
+    class parser_then;
+
+    template<typename T>
+    struct is_parser_then : std::false_type {};
+
+    template<typename T>
+    struct is_parser_then<parser_then<T>> : std::true_type {};
+
+    template<typename T>
+    constexpr bool is_parser_then_v = is_parser_then<T>::value;
+
+
+
+    template<typename T,bool with_back_track>
+    class parser_or;
+
+    template<typename T>
+    struct is_parser_or : std::false_type {};
+
+    template<typename T,bool with_back_track>
+    struct is_parser_or<parser_or<T,with_back_track>> : std::true_type {};
+
+    template<typename T>
+    constexpr bool is_parser_or_v = is_parser_or<T>::value;
+
 }
 
 #endif //LIGHT_PARSER_TRAITS_H

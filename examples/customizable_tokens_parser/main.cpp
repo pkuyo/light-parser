@@ -36,9 +36,11 @@ namespace json {
     auto str = SinglePtr<Token,token_type,StringNode>(token_type::STRING).Name("String");
 
     //bool
-    auto true_false = (SinglePtr<Token,token_type,BoolNode>(token_type::FALSE_) |SinglePtr<Token,token_type,BoolNode>(token_type::TRUE_)).Name("Bool");
+    auto true_false = (SinglePtr<Token,token_type,BoolNode>(token_type::FALSE_) |
+            SinglePtr<Token,token_type,BoolNode>(token_type::TRUE_)).Name("Bool")
+                    >>= [](auto &&t) { return unique_ptr<AstNode>(std::move(t)); };
 
-    auto null = SinglePtr<Token,token_type,NullNode>(token_type::NULL_).Name("Null") >>= [](unique_ptr<NullNode> &&t) { return unique_ptr<AstNode>(std::move(t)); };
+    auto null = SinglePtr<Token,token_type,NullNode>(token_type::NULL_).Name("Null");
 
     auto comma = Check<Token,token_type>(token_type::COMMA).Name(",");
 
