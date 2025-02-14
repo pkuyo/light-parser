@@ -107,15 +107,46 @@ namespace pkuyo::parsers{
     template <typename T>
     constexpr bool is_tuple_v = is_tuple<T>::value;
 
-    template<typename input_type_left,typename input_type_right>
-    using then_result_t = filter_nullptr_t<decltype(std::tuple_cat(
-            std::declval<std::conditional_t<is_tuple_v<input_type_left>,input_type_left,std::tuple<input_type_left>>>(),
-            std::declval<std::conditional_t<is_tuple_v<input_type_right>,input_type_right,std::tuple<input_type_right>>>()))>;
-
-    template <typename Tuple>
-    using filter_nullptr_t = filter_single<typename filter_nullptr<Tuple>::type>::type;
 
 
+    template<typename T,typename G,typename S>
+    struct then_result;
+
+
+    template<typename G,typename S,typename ...input_types>
+    struct then_result<std::tuple<input_types...>,G,S> {
+
+
+
+        using raw_type = decltype(std::tuple_cat(
+                std::declval<std::conditional_t<is_tuple_v<parser_result_t<input_types,G,S>>,
+                        parser_result_t<input_types,G,S>,
+                        std::tuple<parser_result_t<input_types,G,S>>>>()...));
+
+        using type = filter_nullptr_t<raw_type>;
+    };
+
+    template<typename T,typename G,typename S>
+    using then_result_t = then_result<T,G,S>::type;
+
+    template<typename T,typename G,typename S>
+    using raw_then_result_t = then_result<T,G,S>::raw_type;
+
+    template<typename Tuple,size_t to_index,size_t set_index,size_t current_index>
+    struct tuple_set_index {
+        static constexpr size_t value = tuple_set_index<Tuple,
+                to_index,
+                (std::is_same_v<std::tuple_element_t<current_index,Tuple>,nullptr_t> ? 0 : 1) + set_index,
+                current_index+1>::value;
+    };
+
+    template<typename Tuple,size_t to_index,size_t set_index>
+    struct tuple_set_index<Tuple,to_index,set_index,to_index> {
+        static constexpr size_t value = set_index - 1;
+    };
+
+    template<typename T,size_t to_index>
+    constexpr int tuple_set_index_v = tuple_set_index<T,to_index+1,0,0>::value;
 
     //parser_or
     template <typename l, typename r>

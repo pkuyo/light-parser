@@ -429,9 +429,10 @@ namespace pkuyo::parsers {
     //  If the match fails, it attempts an error recovery strategy and returns std::nullopt.
     template<typename input_type_left, typename input_type_right>
     class parser_then : public base_parser<typename std::decay_t<input_type_left>::token_t, parser_then<input_type_left,input_type_right>> {
-
+        template<typename T,typename Y>
+        friend class parser_then;
     public:
-
+        using children_parser_t = std::tuple<input_type_left,input_type_right>;
 
         constexpr parser_then(const input_type_left &parser_left,const input_type_right & parser_right)
                 : children_parsers(std::make_pair(parser_left,parser_right)){}
@@ -441,7 +442,7 @@ namespace pkuyo::parsers {
             using result_r = parser_result_t<input_type_right,GlobalState,State>;
             using result_l = parser_result_t<input_type_left,GlobalState,State>;
 
-            using return_type = then_result_t<result_l,result_r>;
+            using return_type = then_result_t<std::tuple<input_type_left,input_type_right>,GlobalState,State>;
             auto left_re = children_parsers.first.parse_impl(stream,global_state,state);
 
             // If the match fails, attempts to recover and restores the token index, then returns nullopt.
@@ -460,12 +461,6 @@ namespace pkuyo::parsers {
             }
             else if constexpr (std::is_same_v<result_r,nullptr_t>) {
                 return std::make_optional(std::move(left_re.value()));
-            }
-            else if constexpr (is_tuple_v<result_l> && is_tuple_v<result_r>){
-                return std::make_optional<return_type>(std::tuple_cat(std::move(left_re.value()),std::move(right_re.value())));
-            }
-            else if constexpr (is_tuple_v<result_l>){
-                return std::make_optional<return_type>(std::tuple_cat(std::move(left_re.value()),std::make_tuple(std::move(right_re.value()))));
             }
             else {
                 return std::make_optional<return_type>(std::make_tuple(std::move(left_re.value()),std::move(right_re.value())));
@@ -490,6 +485,227 @@ namespace pkuyo::parsers {
 
     private:
         std::pair<input_type_left,input_type_right> children_parsers;
+
+    };
+
+
+    template<typename l_l,typename l_r, typename r_l,typename r_r>
+    class parser_then<parser_then<l_l,l_r>,parser_then<r_l,r_r>> :
+            public base_parser<typename std::decay_t<parser_then<r_l,r_r>>::token_t, parser_then<parser_then<l_l,l_r>,parser_then<r_l,r_r>>> {
+
+    public:
+        using children_parser_t = decltype(
+        std::tuple_cat(std::declval<typename parser_then<l_l,l_r>::children_parser_t>(),
+                       std::declval<typename parser_then<r_l,r_r>::children_parser_t>()));
+
+        constexpr parser_then(const parser_then<l_l,l_r> &parser_left,const parser_then<r_l,r_r> & parser_right)
+                : children_parsers(std::tuple_cat(parser_left.children_parsers,parser_right.children_parsers)){}
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using result_t = then_result_t<children_parser_t,GlobalState,State>;
+            result_t result;
+            auto re = parse_then_impl(result,stream,global_state,state,std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+            if (!re)
+                return std::optional<result_t>();
+            return std::make_optional(std::move(result));
+        }
+        template<typename Result, typename Stream, typename GlobalState, typename State,size_t ...N>
+        bool parse_then_impl(Result& result,
+                             Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N>...) const{
+            return (parse_single(result,stream,global_state,state,N)&&...);
+        }
+        template<typename Result,typename Stream, typename GlobalState, typename State,size_t N>
+        bool parse_single(Result& result,
+                          Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N>) const {
+            using raw_result_t = raw_then_result_t<children_parser_t,GlobalState,State>;
+            auto re = std::get<N>(children_parsers).parse_impl(stream,global_state,state);
+            if(re == std::nullopt) {
+                this->error_handle_recovery(stream);
+                return false;
+            }
+            if constexpr (std::is_same_v<std::decay_t<decltype(*re)>,nullptr_t>)
+                return true;
+            else {
+                if constexpr (is_tuple_v<Result> && !std::is_same_v<std::tuple_element_t<N, raw_result_t>, nullptr_t>) {
+                    std::get<tuple_set_index_v<raw_result_t, N>>(result) = std::move(*re);
+                } else if constexpr (!std::is_same_v<nullptr_t, raw_result_t>) {
+                    result = std::move(*re);
+                }
+                return true;
+            }
+        }
+
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return std::get<0>(children_parsers).peek_impl(stream);
+        }
+
+        void reset_impl() const {
+            reset_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+
+        template<size_t ...N>
+        void reset_then_impl(std::index_sequence<N>...) const{
+            (std::get<N>(children_parsers).reset_impl(),...);
+        }
+
+        void no_error_impl() {
+            no_error_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+        template<size_t ...N>
+        void no_error_then_impl(std::index_sequence<N>...){
+            (std::get<N>(children_parsers).NoError_Internal(),...);
+        }
+    private:
+        children_parser_t children_parsers;
+
+    };
+    template<typename input_type_left, typename r_l,typename r_r>
+    class parser_then<input_type_left,parser_then<r_l,r_r>> :
+            public base_parser<typename std::decay_t<input_type_left>::token_t, parser_then<input_type_left,parser_then<r_l,r_r>>> {
+
+        template<typename T,typename Y>
+        friend class parser_then;
+    public:
+        using children_parser_t = decltype(std::tuple_cat(std::declval<std::tuple<input_type_left>>()),
+                std::declval<typename parser_then<r_l,r_r>::children_parser_t>());
+
+        constexpr parser_then(const input_type_left &parser_left,const parser_then<r_l,r_r> & parser_right)
+                : children_parsers(std::tuple_cat(std::make_tuple(parser_left),parser_right.children_parsers)){}
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using result_t = then_result_t<children_parser_t,GlobalState,State>;
+            result_t result;
+            auto re = parse_then_impl(result,stream,global_state,state,std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+            if (!re)
+                return std::optional<result_t>();
+            return std::make_optional(std::move(result));
+        }
+        template<typename Result,typename Stream, typename GlobalState, typename State,size_t ...N>
+        bool parse_then_impl(Result& result,
+                             Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N>...) const{
+            return (parse_single(result,stream,global_state,state,N)&&...);
+        }
+        template<typename Result, typename Stream, typename GlobalState, typename State,size_t N>
+        bool parse_single(Result& result,
+                          Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N>) const {
+            using raw_result_t = raw_then_result_t<children_parser_t,GlobalState,State>;
+            auto re = std::get<N>(children_parsers).parse_impl(stream,global_state,state);
+            if(re == std::nullopt) {
+                this->error_handle_recovery(stream);
+                return false;
+            }
+            if constexpr (std::is_same_v<std::decay_t<decltype(*re)>,nullptr_t>)
+                return true;
+            else {
+                if constexpr (is_tuple_v<Result> && !std::is_same_v<std::tuple_element_t<N, raw_result_t>, nullptr_t>) {
+                    std::get<tuple_set_index_v<raw_result_t, N>>(result) = std::move(*re);
+                } else if constexpr (!std::is_same_v<nullptr_t, raw_result_t>) {
+                    result = std::move(*re);
+                }
+                return true;
+            }
+        }
+
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return std::get<0>(children_parsers).peek_impl(stream);
+        }
+
+        void reset_impl() const {
+            reset_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+
+        template<size_t ...N>
+        void reset_then_impl(std::index_sequence<N>...) const{
+            (std::get<N>(children_parsers).reset_impl(),...);
+        }
+
+        void no_error_impl() {
+            no_error_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+        template<size_t ...N>
+        void no_error_then_impl(std::index_sequence<N>...){
+             (std::get<N>(children_parsers).NoError_Internal(),...);
+        }
+    private:
+        children_parser_t children_parsers;
+
+    };
+
+    template<typename l_l,typename l_r,typename input_type_right>
+    class parser_then<parser_then<l_l,l_r>,input_type_right> :
+            public base_parser<typename std::decay_t<input_type_right>::token_t, parser_then<parser_then<l_l,l_r>,input_type_right>> {
+        template<typename T,typename Y>
+        friend class parser_then;
+    public:
+        using children_parser_t = decltype(
+                std::tuple_cat(std::declval<typename parser_then<l_l,l_r>::children_parser_t>(),
+                std::declval<std::tuple<input_type_right>>()));
+
+        constexpr parser_then(const parser_then<l_l,l_r> &parser_left,const input_type_right & parser_right)
+                : children_parsers(std::tuple_cat(parser_left.children_parsers,std::make_tuple(parser_right))){}
+
+        template<typename Stream, typename GlobalState, typename State>
+        auto parse_impl(Stream& stream, GlobalState& global_state, State& state) const {
+            using result_t = then_result_t<children_parser_t,GlobalState,State>;
+            result_t result;
+            auto re = parse_then_impl(result,stream,global_state,state,std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+            if (!re)
+                return std::optional<result_t>();
+            return std::make_optional(std::move(result));
+        }
+        template<typename Result, typename Stream, typename GlobalState, typename State,size_t ...N>
+        bool parse_then_impl(Result& result,
+                             Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N...>) const{
+            return (parse_single(result,stream,global_state,state,std::index_sequence<N>())&&...);
+        }
+        template<typename Result, typename Stream, typename GlobalState, typename State,size_t N>
+        bool parse_single(Result& result,
+                          Stream& stream, GlobalState& global_state, State& state, std::index_sequence<N>) const {
+            using raw_result_t = raw_then_result_t<children_parser_t,GlobalState,State>;
+            auto re = std::get<N>(children_parsers).parse_impl(stream,global_state,state);
+            if(re == std::nullopt) {
+                this->error_handle_recovery(stream);
+                return false;
+            }
+            if constexpr (std::is_same_v<std::decay_t<decltype(*re)>,nullptr_t>)
+                return true;
+            else {
+                if constexpr (is_tuple_v<Result> && !std::is_same_v<std::tuple_element_t<N, raw_result_t>, nullptr_t>) {
+                        std::get<tuple_set_index_v<raw_result_t, N>>(result) = std::move(*re);
+                } else if constexpr (!std::is_same_v<nullptr_t, raw_result_t>) {
+                    result = std::move(*re);
+                }
+                return true;
+            }
+        }
+
+        template<typename Stream>
+        bool peek_impl(Stream & stream) const {
+            return std::get<0>(children_parsers).peek_impl(stream);
+        }
+
+        void reset_impl() const {
+            reset_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+
+        template<size_t ...N>
+        void reset_then_impl(std::index_sequence<N...>) const{
+            (std::get<N>(children_parsers).reset_impl(),...);
+        }
+
+        void no_error_impl() {
+            no_error_then_impl(std::make_index_sequence<std::tuple_size_v<children_parser_t>>());
+        }
+        template<size_t ...N>
+        void no_error_then_impl(std::index_sequence<N...>){
+            (std::get<N>(children_parsers).NoError_Internal(),...);
+        }
+    private:
+        children_parser_t children_parsers;
 
     };
 

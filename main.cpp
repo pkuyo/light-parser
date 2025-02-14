@@ -14,6 +14,8 @@ int main() {
                                 <<= [](const auto&) { cout << "parsing" << endl; })
                                 >>= [](const auto& t){return t + ",world!";} ;
 
+
+    cout << tuple_set_index_v<tuple<int,char,nullptr_t,int,nullptr_t,float>,1> << endl;
     string input("Hello,Parser!");
 
     string_stream stream(input);
