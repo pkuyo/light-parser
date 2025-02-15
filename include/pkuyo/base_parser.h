@@ -76,7 +76,7 @@ namespace pkuyo::parsers {
 
         //Disable the exception handler
         constexpr derived_type& NoError() {
-            NoError_Internal();
+            no_error_internal();
             return static_cast<derived_type&>(*this);
         }
         // Predicts if this `parser` can correctly parse the input (single-character lookahead).
@@ -113,8 +113,11 @@ namespace pkuyo::parsers {
 
     protected:
 
-        void NoError_Internal() {
-            this->no_error = true;
+        void no_error_internal() {
+            if(!this->no_error) {
+                this->no_error = true;
+                no_error_impl();
+            }
         }
 
         void Reset() const {

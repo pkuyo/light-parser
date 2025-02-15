@@ -50,7 +50,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
 
     private:
@@ -80,7 +80,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
 
     private:
@@ -111,7 +111,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
     private:
         child_type child_parser;
@@ -506,7 +506,7 @@ namespace pkuyo::parsers {
 
         template<size_t ...N>
         void no_error_then_impl(std::index_sequence<N...>){
-            (std::get<N>(children_parsers).NoError_Internal(),...);
+            (std::get<N>(children_parsers).no_error_internal(),...);
         }
 
         children_parser_t children_parsers;
@@ -615,7 +615,7 @@ namespace pkuyo::parsers {
 
         template<size_t ...N>
         void no_error_or_impl(std::index_sequence<N...>){
-            (std::get<N>(children_parsers).NoError_Internal(),...);
+            (std::get<N>(children_parsers).no_error_internal(),...);
         }
 
         template<typename T>
@@ -672,7 +672,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
 
     private:
@@ -725,7 +725,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
     private:
         child_type child_parser;
@@ -767,7 +767,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
 
     private:
@@ -808,7 +808,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
     private:
         child_type child_parser;
@@ -967,7 +967,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            source.NoError_Internal();
+            source.no_error_internal();
         }
     private:
         child_type source;
@@ -1045,7 +1045,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            source.NoError_Internal();
+            source.no_error_internal();
         }
     private:
         child_type source;
@@ -1112,7 +1112,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            child_parser.NoError_Internal();
+            child_parser.no_error_internal();
         }
     private:
         child_type child_parser;
@@ -1149,7 +1149,7 @@ namespace pkuyo::parsers {
         }
 
         void no_error_impl() {
-            parser.NoError_Internal();
+            parser.no_error_internal();
         }
     private:
         Parser parser;
@@ -1188,8 +1188,8 @@ namespace pkuyo::parsers {
             recovery.reset_impl();
         }
         void no_error_impl() {
-            parser.NoError_Internal();
-            recovery.NoError_Internal();
+            parser.no_error_internal();
+            recovery.no_error_internal();
         }
     private:
         Parser parser;
